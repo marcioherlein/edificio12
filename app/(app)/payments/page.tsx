@@ -3,7 +3,11 @@ import { redirect } from "next/navigation";
 import { currentMonth } from "@/lib/utils";
 import PaymentsClient from "./PaymentsClient";
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string }>;
+}) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -16,22 +20,25 @@ export default async function PaymentsPage() {
 
   const isAdmin = profile?.role === "admin";
   const svc = createServiceClient();
-  const month = currentMonth();
+  const params = await searchParams;
+  const month = params.month ?? currentMonth();
 
-  const [paymentsRes, unitsRes, feeRes, unitBalancesRes] = await Promise.all([
-    // Payment history: admin sees all, resident sees own unit only
+  const [paymentsRes, unitsRes, feeRes, unitBalancesRes, availableMonthsRes] = await Promise.all([
+    // Payment history for selected month: admin sees all, resident sees own unit only
     isAdmin
-      ? svc.from("payments").select("id, unit_id, amount, method, date, month, notes, receipt_url, units!inner(name)").order("date", { ascending: false }).limit(200)
-      : svc.from("payments").select("id, unit_id, amount, method, date, month, notes, receipt_url, units!inner(name)").eq("unit_id", profile?.unit_id ?? "never").order("date", { ascending: false }),
-    // All units for building-wide status (visible to everyone)
+      ? svc.from("payments").select("id, unit_id, amount, method, date, month, notes, receipt_url, units!inner(name)").eq("month", month).order("date", { ascending: false })
+      : svc.from("payments").select("id, unit_id, amount, method, date, month, notes, receipt_url, units!inner(name)").eq("unit_id", profile?.unit_id ?? "never").eq("month", month).order("date", { ascending: false }),
+    // All units
     svc.from("units").select("id, name, owner_name").order("name"),
-    // Current month fee
+    // Fee for selected month
     svc.from("monthly_fees").select("amount").eq("month", month).single(),
-    // Opening balances (debt carried from previous month)
+    // Opening balances for selected month
     svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
+    // All months that have payments (for the month selector)
+    svc.from("payments").select("month").order("month", { ascending: false }),
   ]);
 
-  // Current month payments grouped by unit, split by method
+  // Payments for selected month grouped by unit, split by method
   const { data: monthPayments } = await svc
     .from("payments")
     .select("unit_id, amount, method, date")
@@ -53,13 +60,18 @@ export default async function PaymentsPage() {
     lastPaymentDateByUnit[p.unit_id] = p.date;
   }
 
-  // Opening balances keyed by unit_id
   const openingByUnit: Record<string, number> = {};
   for (const b of unitBalancesRes.data ?? []) {
     openingByUnit[b.unit_id] = Number(b.opening_balance);
   }
 
-  // Normalize Supabase join (returns array or object depending on relation type)
+  // Unique sorted months for selector (include current month even if no payments yet)
+  const monthSet = new Set<string>(
+    (availableMonthsRes.data ?? []).map((r: any) => r.month)
+  );
+  monthSet.add(currentMonth());
+  const availableMonths = Array.from(monthSet).sort().reverse();
+
   const payments = (paymentsRes.data ?? []).map((p: any) => ({
     ...p,
     units: Array.isArray(p.units) ? p.units[0] ?? null : p.units,
@@ -76,6 +88,7 @@ export default async function PaymentsPage() {
       openingByUnit={openingByUnit}
       feeAmount={feeRes.data?.amount ?? 0}
       month={month}
+      availableMonths={availableMonths}
       isAdmin={isAdmin}
       myUnitId={profile?.unit_id ?? null}
     />
