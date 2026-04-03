@@ -16,10 +16,16 @@ export default async function ExpensesPage() {
   const isAdmin = profile?.role === "admin";
   const svc = createServiceClient();
 
-  const { data: expenses } = await svc
-    .from("expenses")
-    .select("*")
-    .order("date", { ascending: false });
+  const [expensesRes, categoriesRes] = await Promise.all([
+    svc.from("expenses").select("id, description, amount, date, category, method, receipt_url").order("date", { ascending: false }),
+    svc.from("expense_categories").select("id, name").order("name"),
+  ]);
 
-  return <ExpensesClient expenses={expenses ?? []} isAdmin={isAdmin} />;
+  return (
+    <ExpensesClient
+      expenses={expensesRes.data ?? []}
+      categories={categoriesRes.data ?? []}
+      isAdmin={isAdmin}
+    />
+  );
 }
