@@ -11,11 +11,9 @@ const ADMIN_NAV = [
 ];
 
 const RESIDENT_NAV = [
-  { href: "/dashboard",     label: "Inicio",   icon: "🏠" },
-  { href: "/payments",      label: "Pagos",    icon: "💳" },
-  { href: "/expenses",      label: "Expensas", icon: "📊" },
-  { href: "/documents",     label: "Docs",     icon: "📄" },
-  { href: "/announcements", label: "Avisos",   icon: "📢" },
+  { href: "/dashboard", label: "Inicio",   icon: "🏠" },
+  { href: "/resumen",   label: "Resumen",  icon: "📋" },
+  { href: "/documents", label: "Docs",     icon: "📄" },
 ];
 
 export default function BottomNav({ role }: { role: string }) {

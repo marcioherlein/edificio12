@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Link from "next/link";
 import AdminBalanceSetup from "./AdminBalanceSetup";
+import BalanceChart, { MonthBalance } from "./BalanceChart";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -35,50 +36,59 @@ export default async function DashboardPage() {
 async function AdminDashboard({ month }: { month: string }) {
   const svc = createServiceClient();
 
-  const [paymentsRes, expensesRes, feesRes, unitsRes, balanceRes] = await Promise.all([
-    svc.from("payments").select("amount, method, month"),
-    svc.from("expenses").select("amount, method"),
+  const [allBalancesRes, allPaymentsRes, allExpensesRes, feesRes, unitsRes] = await Promise.all([
+    svc.from("account_balances")
+      .select("month, cash_opening, bank_opening, bank_interest")
+      .order("month"),
+    svc.from("payments").select("month, amount, method"),
+    svc.from("expenses").select("date, amount, method"),
     svc.from("monthly_fees").select("amount").eq("month", month).single(),
     svc.from("units").select("id, name"),
-    svc.from("account_balances").select("cash_opening, bank_opening").eq("month", month).single(),
   ]);
 
-  // This month's payments split by method
-  const monthPayments = (paymentsRes.data ?? []).filter((p) => p.month === month);
-  const cashIn = monthPayments
-    .filter((p) => p.method === "efectivo")
-    .reduce((s, p) => s + Number(p.amount), 0);
-  const bankIn = monthPayments
-    .filter((p) => p.method === "transferencia")
-    .reduce((s, p) => s + Number(p.amount), 0);
-  const totalIn = cashIn + bankIn;
+  const allBalances = allBalancesRes.data ?? [];
+  const allPayments = allPaymentsRes.data ?? [];
+  const allExpenses = allExpensesRes.data ?? [];
 
-  // All-time payment totals (for historical balance)
-  const allCashIn = (paymentsRes.data ?? [])
-    .filter((p) => p.method === "efectivo")
-    .reduce((s, p) => s + Number(p.amount), 0);
-  const allBankIn = (paymentsRes.data ?? [])
-    .filter((p) => p.method === "transferencia")
-    .reduce((s, p) => s + Number(p.amount), 0);
+  // ── Per-month closing balance (for chart) ───────────────
+  const chartData: MonthBalance[] = allBalances.map((ab) => {
+    const m = ab.month;
+    const cashIn = allPayments
+      .filter(p => p.month === m && p.method === "efectivo")
+      .reduce((s, p) => s + Number(p.amount), 0);
+    const transferIn = allPayments
+      .filter(p => p.month === m && p.method === "transferencia")
+      .reduce((s, p) => s + Number(p.amount), 0);
+    const cashOut = allExpenses
+      .filter(e => e.date.startsWith(m) && (e.method ?? "transferencia") === "efectivo")
+      .reduce((s, e) => s + Number(e.amount), 0);
+    const transferOut = allExpenses
+      .filter(e => e.date.startsWith(m) && (e.method ?? "transferencia") !== "efectivo")
+      .reduce((s, e) => s + Number(e.amount), 0);
+    return {
+      month: m,
+      caja: Number(ab.cash_opening) + cashIn - cashOut,
+      uala: Number(ab.bank_opening) + transferIn + Number((ab as any).bank_interest ?? 0) - transferOut,
+    };
+  });
 
-  // Expenses split by method
-  const cashOut = (expensesRes.data ?? [])
-    .filter((e) => (e.method ?? "transferencia") === "efectivo")
-    .reduce((s, e) => s + Number(e.amount), 0);
-  const bankOut = (expensesRes.data ?? [])
-    .filter((e) => (e.method ?? "transferencia") === "transferencia")
-    .reduce((s, e) => s + Number(e.amount), 0);
-  const totalOut = cashOut + bankOut;
+  // ── Current month balance ────────────────────────────────
+  const currentAb = allBalances.find(ab => ab.month === month);
+  const cashOpening  = Number(currentAb?.cash_opening ?? 0);
+  const bankOpening  = Number(currentAb?.bank_opening ?? 0);
+  const bankInterest = Number((currentAb as any)?.bank_interest ?? 0);
+  const openingSet   = !!currentAb;
 
-  // Opening balances
-  const cashOpening = Number(balanceRes.data?.cash_opening ?? 0);
-  const bankOpening = Number(balanceRes.data?.bank_opening ?? 0);
-  const openingSet = !!balanceRes.data;
+  const cashIn  = allPayments.filter(p => p.month === month && p.method === "efectivo").reduce((s, p) => s + Number(p.amount), 0);
+  const bankIn  = allPayments.filter(p => p.month === month && p.method === "transferencia").reduce((s, p) => s + Number(p.amount), 0);
+  const cashOut = allExpenses.filter(e => e.date.startsWith(month) && (e.method ?? "transferencia") === "efectivo").reduce((s, e) => s + Number(e.amount), 0);
+  const bankOut = allExpenses.filter(e => e.date.startsWith(month) && (e.method ?? "transferencia") !== "efectivo").reduce((s, e) => s + Number(e.amount), 0);
 
-  // Current balances
-  const cashBalance = cashOpening + allCashIn - cashOut;
-  const bankBalance = bankOpening + allBankIn - bankOut;
+  const cashBalance  = cashOpening + cashIn - cashOut;
+  const bankBalance  = bankOpening + bankIn + bankInterest - bankOut;
   const totalBalance = cashBalance + bankBalance;
+  const totalIn      = cashIn + bankIn;
+  const totalOut     = cashOut + bankOut;
 
   const feeAmount = feesRes.data?.amount ?? 0;
 
@@ -157,6 +167,16 @@ async function AdminDashboard({ month }: { month: string }) {
           </div>
         </div>
       </Card>
+
+      {/* Monthly balance chart */}
+      {chartData.length > 0 && (
+        <Card>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+            Evolución del fondo
+          </p>
+          <BalanceChart data={chartData} />
+        </Card>
+      )}
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 gap-3">

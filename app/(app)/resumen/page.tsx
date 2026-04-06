@@ -22,7 +22,7 @@ export default async function ResumenPage({
   const { data: profile } = await supabase
     .from("profiles").select("role").eq("id", user.id).single();
 
-  if (profile?.role !== "admin") redirect("/dashboard");
+  if (!profile) redirect("/login");
 
   const svc = createServiceClient();
   const params = await searchParams;
