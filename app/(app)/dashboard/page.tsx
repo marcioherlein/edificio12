@@ -140,14 +140,14 @@ async function AdminDashboard({ month }: { month: string }) {
           <p className="text-amber-100 text-xs font-medium mb-0.5">💵 Caja (efectivo)</p>
           <p className="text-xl font-bold">{formatCurrency(cashBalance)}</p>
           <p className="text-amber-200 text-[11px] mt-1">
-            Abre: {formatCurrency(cashOpening)} + {formatCurrency(allCashIn)} − {formatCurrency(cashOut)}
+            Abre: {formatCurrency(cashOpening)} + {formatCurrency(cashIn)} − {formatCurrency(cashOut)}
           </p>
         </Card>
         <Card className="bg-gradient-to-br from-blue-600 to-blue-700 text-white">
           <p className="text-blue-100 text-xs font-medium mb-0.5">🏦 Cta. Ualá</p>
           <p className="text-xl font-bold">{formatCurrency(bankBalance)}</p>
           <p className="text-blue-200 text-[11px] mt-1">
-            Abre: {formatCurrency(bankOpening)} + {formatCurrency(allBankIn)} − {formatCurrency(bankOut)}
+            Abre: {formatCurrency(bankOpening)} + {formatCurrency(bankIn)} − {formatCurrency(bankOut)}
           </p>
         </Card>
       </div>
