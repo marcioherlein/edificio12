@@ -1,6 +1,6 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { currentMonth } from "@/lib/utils";
+import { currentMonth, nextMonth } from "@/lib/utils";
 import ResumenClient from "./ResumenClient";
 
 function nextMonthStr(month: string) {
@@ -64,6 +64,7 @@ export default async function ResumenPage({
 
   const monthSet = new Set((monthsRes.data ?? []).map((r: any) => r.month as string));
   monthSet.add(currentMonth());
+  monthSet.add(nextMonth());
   const availableMonths = Array.from(monthSet).sort().reverse();
 
   const ab = accountBalRes.data;
