@@ -12,7 +12,9 @@ import BalanceChart, { MonthBalance } from "./BalanceChart";
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+
+  // Non-admin users (guests and residents) go straight to the public Resumen portal
+  if (!user) redirect("/resumen");
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -20,7 +22,7 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
-  if (!profile) redirect("/login");
+  if (!profile) redirect("/resumen");
 
   const month = currentMonth();
 
@@ -28,7 +30,8 @@ export default async function DashboardPage() {
     return <AdminDashboard month={month} />;
   }
 
-  return <ResidentDashboard unitId={profile.unit_id} month={month} name={profile.name} />;
+  // Logged-in residents also see the public portal
+  redirect("/resumen");
 }
 
 // ── Admin Dashboard ──────────────────────────────────────────────────────────

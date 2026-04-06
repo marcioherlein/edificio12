@@ -1,5 +1,4 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { currentMonth, nextMonth } from "@/lib/utils";
 import ResumenClient from "./ResumenClient";
 
@@ -15,19 +14,20 @@ export default async function ResumenPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
+  // Auth is optional — admin controls shown only if logged in as admin
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles").select("role").eq("id", user.id).single();
-
-  if (!profile) redirect("/login");
+  let isAdmin = false;
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles").select("role").eq("id", user.id).single();
+    isAdmin = profile?.role === "admin";
+  }
 
   const svc = createServiceClient();
   const params = await searchParams;
   const month = params.month ?? currentMonth();
-  const isAdmin = profile?.role === "admin";
 
   const [unitsRes, feeRes, accountBalRes, unitBalancesRes, paymentsRes, expensesRes, monthsRes, categoriesRes] =
     await Promise.all([

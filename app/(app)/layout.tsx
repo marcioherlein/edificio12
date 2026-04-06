@@ -1,21 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import BottomNav from "@/components/resident/BottomNav";
+import Link from "next/link";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+  let role: string | null = null;
+  let name: string | null = null;
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("name, role")
-    .eq("id", user.id)
-    .single();
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("name, role")
+      .eq("id", user.id)
+      .single();
+    role = profile?.role ?? "resident";
+    name = profile?.name ?? user.email ?? null;
+  }
 
-  const role = profile?.role ?? "resident";
-  const name = profile?.name ?? user.email ?? "";
+  const isAdmin = role === "admin";
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-950">
@@ -29,12 +33,26 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
           <span className="font-semibold text-white text-sm">Edificio 12</span>
         </div>
+
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-400 hidden sm:block">{name}</span>
-          {role === "admin" && (
-            <span className="text-xs bg-blue-900/60 text-blue-300 px-2 py-0.5 rounded-full font-medium border border-blue-800">Admin</span>
+          {user ? (
+            <>
+              <span className="text-xs text-gray-400 hidden sm:block">{name}</span>
+              {isAdmin && (
+                <span className="text-xs bg-blue-900/60 text-blue-300 px-2 py-0.5 rounded-full font-medium border border-blue-800">
+                  Admin
+                </span>
+              )}
+              <LogoutButton />
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="text-sm font-semibold text-white bg-blue-600 hover:bg-blue-500 px-4 py-1.5 rounded-xl transition-colors"
+            >
+              Iniciar sesión
+            </Link>
           )}
-          <LogoutButton />
         </div>
       </header>
 
@@ -44,7 +62,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </main>
 
       {/* Bottom navigation */}
-      <BottomNav role={role} />
+      <BottomNav role={role ?? "guest"} />
     </div>
   );
 }
