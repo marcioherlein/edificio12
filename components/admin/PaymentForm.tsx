@@ -2,7 +2,19 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Button from "@/components/ui/Button";
-import { currentMonth } from "@/lib/utils";
+import { currentMonth, formatMonthLabel } from "@/lib/utils";
+
+function buildMonthOptions(): string[] {
+  const now = new Date();
+  const options: string[] = [];
+  // from March 2026 up to 2 months ahead
+  const start = new Date(2026, 2, 1); // March 2026
+  const end = new Date(now.getFullYear(), now.getMonth() + 2, 1);
+  for (let d = new Date(end); d >= start; d.setMonth(d.getMonth() - 1)) {
+    options.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+  return options;
+}
 
 interface Unit { id: string; name: string; }
 
@@ -103,13 +115,16 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Mes *</label>
-          <input
-            type="month"
+          <select
             required
             value={month}
             onChange={(e) => setMonth(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          >
+            {buildMonthOptions().map((m) => (
+              <option key={m} value={m}>{formatMonthLabel(m)}</option>
+            ))}
+          </select>
         </div>
       </div>
 

@@ -18,21 +18,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const name = profile?.name ?? user.email ?? "";
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-950">
       {/* Top bar */}
-      <header className="flex-shrink-0 bg-white border-b border-gray-200 px-4 h-14 flex items-center justify-between shadow-sm">
+      <header className="flex-shrink-0 bg-gray-900 border-b border-gray-800 px-4 h-14 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-xl bg-blue-600 flex items-center justify-center">
             <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
               <path d="M10 3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm10-10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1z"/>
             </svg>
           </div>
-          <span className="font-semibold text-gray-900 text-sm">Edificio 12</span>
+          <span className="font-semibold text-white text-sm">Edificio 12</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 hidden sm:block">{name}</span>
+          <span className="text-xs text-gray-400 hidden sm:block">{name}</span>
           {role === "admin" && (
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Admin</span>
+            <span className="text-xs bg-blue-900/60 text-blue-300 px-2 py-0.5 rounded-full font-medium border border-blue-800">Admin</span>
           )}
           <LogoutButton />
         </div>
@@ -54,7 +54,7 @@ function LogoutButton() {
     <form action="/api/logout" method="post">
       <button
         type="submit"
-        className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1 rounded"
+        className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-2 py-1 rounded"
       >
         Salir
       </button>
