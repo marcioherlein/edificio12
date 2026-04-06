@@ -23,7 +23,9 @@ interface Props {
 
 export default function ReportViewer({ month, reportHtml, summary, generatedAt, isAdmin }: Props) {
   const [generating, setGenerating] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
+  const [published, setPublished] = useState(false);
 
   async function generate() {
     setGenerating(true);
@@ -42,6 +44,23 @@ export default function ReportViewer({ month, reportHtml, summary, generatedAt, 
     setGenerating(false);
   }
 
+  async function publish() {
+    setPublishing(true);
+    setError("");
+    const res = await fetch("/api/reports/finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month }),
+    });
+    if (res.ok) {
+      setPublished(true);
+    } else {
+      const { error: e } = await res.json().catch(() => ({ error: "Error desconocido" }));
+      setError(e ?? "Error al publicar el reporte");
+    }
+    setPublishing(false);
+  }
+
   return (
     <div className="p-4 max-w-3xl mx-auto space-y-4">
       <div className="flex items-center justify-between pt-2">
@@ -50,14 +69,27 @@ export default function ReportViewer({ month, reportHtml, summary, generatedAt, 
           <p className="text-sm text-gray-500">{formatMonthLabel(month)}</p>
         </div>
         {isAdmin && (
-          <Button size="sm" onClick={generate} loading={generating}>
-            {reportHtml ? "♻️ Regenerar" : "Generar reporte"}
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="secondary" onClick={generate} loading={generating}>
+              {reportHtml ? "♻️ Regenerar" : "Generar reporte"}
+            </Button>
+            {reportHtml && (
+              <Button size="sm" onClick={publish} loading={publishing} disabled={published}>
+                {published ? "✅ Publicado en Documentos" : "📥 Publicar reporte final"}
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{error}</div>
+      )}
+
+      {published && (
+        <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-700">
+          ✅ Reporte final publicado en la pestaña <strong>Documentos</strong> como &quot;REPORTE FINAL MES {formatMonthLabel(month).toUpperCase()}&quot;.
+        </div>
       )}
 
       {!reportHtml && !generating && (

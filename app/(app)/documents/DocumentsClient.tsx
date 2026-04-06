@@ -19,7 +19,7 @@ interface Props { documents: Document[]; isAdmin: boolean; }
 
 const TYPE_ICONS: Record<string, string> = {
   Acta: "📋", Liquidación: "💰", Presupuesto: "📐",
-  Reglamento: "📜", Circular: "📬", Otro: "📄",
+  Reglamento: "📜", Circular: "📬", Reporte: "📊", Otro: "📄",
 };
 
 export default function DocumentsClient({ documents, isAdmin }: Props) {
@@ -63,6 +63,9 @@ export default function DocumentsClient({ documents, isAdmin }: Props) {
                     <span className="text-xs text-gray-400">
                       {new Date(doc.created_at).toLocaleDateString("es-AR")}
                     </span>
+                    {doc.type === "Reporte" && (
+                      <span className="text-xs text-blue-600 font-medium">✍️ Fabiana Herlein</span>
+                    )}
                   </div>
                 </div>
                 <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
