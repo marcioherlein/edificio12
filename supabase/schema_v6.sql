@@ -9,6 +9,7 @@ VALUES ('receipts', 'receipts', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
 -- Allow admins to upload files to the receipts bucket
+DROP POLICY IF EXISTS "admin_upload_receipts" ON storage.objects;
 CREATE POLICY "admin_upload_receipts" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (
@@ -17,11 +18,13 @@ CREATE POLICY "admin_upload_receipts" ON storage.objects
   );
 
 -- Allow anyone to read receipts (for public URLs to work)
+DROP POLICY IF EXISTS "public_read_receipts" ON storage.objects;
 CREATE POLICY "public_read_receipts" ON storage.objects
   FOR SELECT
   USING (bucket_id = 'receipts');
 
 -- Allow admins to delete receipts
+DROP POLICY IF EXISTS "admin_delete_receipts" ON storage.objects;
 CREATE POLICY "admin_delete_receipts" ON storage.objects
   FOR DELETE TO authenticated
   USING (
