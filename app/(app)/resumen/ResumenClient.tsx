@@ -119,12 +119,7 @@ export default function ResumenClient({
 
         {/* Closed month notice for admin */}
         {isAdmin && !canEdit && (
-          <div className="flex items-center gap-2 bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-2.5">
-            <span className="text-gray-400 text-sm">🔒</span>
-            <p className="text-sm text-gray-400">
-              <span className="font-semibold text-gray-300">{formatMonthLabel(month)}</span> está cerrado — solo lectura.
-            </p>
-          </div>
+          <ClosedMonthAdmin month={month} />
         )}
 
         {/* ════════════════════════════════════════════════
@@ -638,5 +633,56 @@ function EditPaymentForm({
         </div>
       </div>
     </form>
+  );
+}
+
+// ── Closed month admin panel ──────────────────────────────────────────────────
+
+function ClosedMonthAdmin({ month }: { month: string }) {
+  const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  async function handleGenerate() {
+    setStatus("loading");
+    setErrorMsg("");
+    const res = await fetch("/api/reports/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month }),
+    });
+    if (res.ok) {
+      setStatus("done");
+    } else {
+      const { error: e } = await res.json().catch(() => ({ error: "Error desconocido" }));
+      setErrorMsg(e ?? "Error al generar");
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div className="bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-gray-400 text-sm">🔒</span>
+          <p className="text-sm text-gray-400">
+            <span className="font-semibold text-gray-300">{formatMonthLabel(month)}</span> está cerrado — solo lectura.
+          </p>
+        </div>
+        {status === "done" ? (
+          <span className="text-xs text-green-400 font-semibold">✓ Reporte generado y publicado en Documentos</span>
+        ) : (
+          <button
+            onClick={handleGenerate}
+            disabled={status === "loading"}
+            className="flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {status === "loading" ? "Generando…" : "📄 Generar y publicar reporte"}
+          </button>
+        )}
+      </div>
+      {status === "error" && (
+        <p className="text-xs text-red-400 bg-red-900/20 px-3 py-1.5 rounded-lg">{errorMsg}</p>
+      )}
+    </div>
   );
 }
