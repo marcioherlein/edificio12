@@ -5,14 +5,13 @@ import Button from "@/components/ui/Button";
 import { currentMonth, formatMonthLabel } from "@/lib/utils";
 
 function buildMonthOptions(): string[] {
-  const now = new Date();
   const options: string[] = [];
-  const start = new Date(2026, 2, 1); // March 2026
-  const end = new Date(now.getFullYear(), now.getMonth() + 2, 1);
+  const start = new Date(2025, 11, 1); // December 2025
+  const end = new Date(2026, 11, 1);   // December 2026
   for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
     options.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
-  return options; // oldest → newest (Jan → future)
+  return options; // Dec 2025 → Dec 2026 (oldest → newest)
 }
 
 interface Unit { id: string; name: string; }
