@@ -43,7 +43,7 @@ async function AdminDashboard({ month }: { month: string }) {
     svc.from("account_balances")
       .select("month, cash_opening, bank_opening, bank_interest")
       .order("month"),
-    svc.from("payments").select("month, amount, method"),
+    svc.from("payments").select("date, amount, method"),
     svc.from("expenses").select("date, amount, method"),
     svc.from("monthly_fees").select("amount").eq("month", month).single(),
     svc.from("units").select("id, name"),
@@ -57,10 +57,10 @@ async function AdminDashboard({ month }: { month: string }) {
   const chartData: MonthBalance[] = allBalances.map((ab) => {
     const m = ab.month;
     const cashIn = allPayments
-      .filter(p => p.month === m && p.method === "efectivo")
+      .filter(p => p.date.startsWith(m) && p.method === "efectivo")
       .reduce((s, p) => s + Number(p.amount), 0);
     const transferIn = allPayments
-      .filter(p => p.month === m && p.method === "transferencia")
+      .filter(p => p.date.startsWith(m) && p.method === "transferencia")
       .reduce((s, p) => s + Number(p.amount), 0);
     const cashOut = allExpenses
       .filter(e => e.date.startsWith(m) && (e.method ?? "transferencia") === "efectivo")
@@ -82,8 +82,9 @@ async function AdminDashboard({ month }: { month: string }) {
   const bankInterest = Number((currentAb as any)?.bank_interest ?? 0);
   const openingSet   = !!currentAb;
 
-  const cashIn  = allPayments.filter(p => p.month === month && p.method === "efectivo").reduce((s, p) => s + Number(p.amount), 0);
-  const bankIn  = allPayments.filter(p => p.month === month && p.method === "transferencia").reduce((s, p) => s + Number(p.amount), 0);
+  // Filter by date (received this month) — consistent with Resumen page
+  const cashIn  = allPayments.filter(p => p.date.startsWith(month) && p.method === "efectivo").reduce((s, p) => s + Number(p.amount), 0);
+  const bankIn  = allPayments.filter(p => p.date.startsWith(month) && p.method === "transferencia").reduce((s, p) => s + Number(p.amount), 0);
   const cashOut = allExpenses.filter(e => e.date.startsWith(month) && (e.method ?? "transferencia") === "efectivo").reduce((s, e) => s + Number(e.amount), 0);
   const bankOut = allExpenses.filter(e => e.date.startsWith(month) && (e.method ?? "transferencia") !== "efectivo").reduce((s, e) => s + Number(e.amount), 0);
 
@@ -95,11 +96,14 @@ async function AdminDashboard({ month }: { month: string }) {
 
   const feeAmount = feesRes.data?.amount ?? 0;
 
-  // Current month payment totals per unit
+  // Current month payment totals per unit — by receipt date
+  const [y, m] = month.split("-").map(Number);
+  const nextM = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
   const { data: monthUnitPayments } = await svc
     .from("payments")
     .select("unit_id, amount")
-    .eq("month", month);
+    .gte("date", `${month}-01`)
+    .lt("date", nextM);
 
   const paidByUnit: Record<string, number> = {};
   for (const p of monthUnitPayments ?? []) {
@@ -126,14 +130,19 @@ async function AdminDashboard({ month }: { month: string }) {
         </div>
       </div>
 
-      {/* Opening balance setup */}
-      {!openingSet && (
+      {/* Opening balance setup / edit */}
+      {!openingSet ? (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
           <p className="text-sm font-semibold text-orange-800 mb-1">⚠️ Saldo inicial del mes no configurado</p>
           <p className="text-xs text-orange-600 mb-3">
             Para mostrar el fondo total correctamente, ingresá el saldo arrastrado del mes anterior.
           </p>
           <AdminBalanceSetup month={month} />
+        </div>
+      ) : (
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Saldo apertura del mes</p>
+          <AdminBalanceSetup month={month} current={{ cash: cashOpening, bank: bankOpening }} />
         </div>
       )}
 
@@ -157,16 +166,28 @@ async function AdminDashboard({ month }: { month: string }) {
 
       {/* Total fund */}
       <Card className="bg-gradient-to-br from-gray-800 to-gray-900 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-gray-400 text-xs font-medium mb-0.5">Fondo total del edificio</p>
-            <p className={`text-3xl font-bold ${totalBalance >= 0 ? "text-white" : "text-red-300"}`}>
-              {formatCurrency(totalBalance)}
-            </p>
+        <p className="text-gray-400 text-xs font-medium mb-1">Fondo total del edificio</p>
+        <p className={`text-3xl font-bold mb-3 ${totalBalance >= 0 ? "text-white" : "text-red-300"}`}>
+          {formatCurrency(totalBalance)}
+        </p>
+        <div className="border-t border-gray-700 pt-2 space-y-1 text-xs text-gray-400">
+          <div className="flex justify-between">
+            <span>Apertura del mes</span>
+            <span className="text-gray-300 font-semibold">{formatCurrency(cashOpening + bankOpening)}</span>
           </div>
-          <div className="text-right text-xs text-gray-400 space-y-1">
-            <p>Ingresos mes: <span className="text-green-400 font-semibold">{formatCurrency(totalIn)}</span></p>
-            <p>Egresos mes: <span className="text-red-400 font-semibold">{formatCurrency(totalOut)}</span></p>
+          <div className="flex justify-between">
+            <span>+ Ingresos</span>
+            <span className="text-green-400 font-semibold">+ {formatCurrency(totalIn)}</span>
+          </div>
+          {bankInterest > 0 && (
+            <div className="flex justify-between">
+              <span>+ Intereses Uala</span>
+              <span className="text-blue-400 font-semibold">+ {formatCurrency(bankInterest)}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span>− Egresos</span>
+            <span className="text-red-400 font-semibold">− {formatCurrency(totalOut)}</span>
           </div>
         </div>
       </Card>
