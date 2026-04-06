@@ -2,6 +2,38 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Button from "@/components/ui/Button";
+import { formatCurrency, formatMonthLabel } from "@/lib/utils";
+
+// Returns the allowed date window for expense registration:
+// - from the 1st of the current month
+// - up to and including the 5th of the following month (grace period)
+function getAllowedWindow(): { minDate: string; maxDate: string; currentMonth: string; graceMonth: string | null } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-indexed
+
+  const firstOfMonth = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  const currentMonth = `${y}-${String(m + 1).padStart(2, "0")}`;
+
+  // Grace: up to day 5 of next month
+  const graceY = m === 11 ? y + 1 : y;
+  const graceM = m === 11 ? 1 : m + 2;
+  const maxDate = `${graceY}-${String(graceM).padStart(2, "0")}-05`;
+
+  // If today is in the grace period (day 1–5 of next month), show a warning
+  const today = now.getDate();
+  const isGracePeriod = now.getMonth() > m || (today <= 5 && now.getMonth() === m + 1);
+  const graceMonth = isGracePeriod ? currentMonth : null;
+
+  return { minDate: firstOfMonth, maxDate, currentMonth, graceMonth };
+}
+
+function formatDateDisplay(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("es-AR", {
+    day: "2-digit", month: "long", year: "numeric",
+  });
+}
 
 interface Category { id: string; name: string; }
 
@@ -13,31 +45,46 @@ interface Props {
 
 export default function ExpenseForm({ categories, onSuccess, onCancel }: Props) {
   const supabase = createClient();
+  const { minDate, maxDate, currentMonth, graceMonth } = getAllowedWindow();
+
+  const today = new Date().toISOString().split("T")[0];
+  // Default date = today, clamped within the allowed window
+  const defaultDate = today > maxDate ? maxDate : today < minDate ? minDate : today;
+
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"efectivo" | "transferencia">("transferencia");
   const [category, setCategory] = useState("");
   const [customCategory, setCustomCategory] = useState("");
   const [showCustom, setShowCustom] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(defaultDate);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   const finalCategory = showCustom ? customCategory.trim() : category;
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleReview(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!description || !amount || !finalCategory) {
       setError("Completá todos los campos obligatorios.");
       return;
     }
+    if (date < minDate || date > maxDate) {
+      setError(`Solo podés registrar gastos entre el ${formatDateDisplay(minDate)} y el ${formatDateDisplay(maxDate)}.`);
+      return;
+    }
+    setConfirming(true);
+  }
+
+  async function handleConfirm() {
+    setError("");
     setLoading(true);
 
     let receipt_url: string | null = null;
 
-    // For transfer: upload receipt file if provided
     if (method === "transferencia" && receiptFile) {
       const ext = receiptFile.name.split(".").pop() ?? "pdf";
       const filename = `expense-${Date.now()}.${ext}`;
@@ -47,13 +94,13 @@ export default function ExpenseForm({ categories, onSuccess, onCancel }: Props) 
       if (uploadErr) {
         setError("Error al subir el comprobante: " + uploadErr.message);
         setLoading(false);
+        setConfirming(false);
         return;
       }
       const { data: { publicUrl } } = supabase.storage.from("receipts").getPublicUrl(filename);
       receipt_url = publicUrl;
     }
 
-    // Save custom category to DB if new
     if (showCustom && customCategory.trim()) {
       await supabase
         .from("expense_categories")
@@ -77,14 +124,104 @@ export default function ExpenseForm({ categories, onSuccess, onCancel }: Props) 
 
     if (insertErr) {
       setError("Error al registrar el gasto: " + insertErr.message);
+      setConfirming(false);
     } else {
       onSuccess(data.id, method === "efectivo");
     }
     setLoading(false);
   }
 
+  // ── Confirmation screen ──────────────────────────────────────
+  if (confirming) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-2xl">🔍</span>
+          <h3 className="text-base font-bold text-gray-900">Confirmá el gasto antes de registrar</h3>
+        </div>
+
+        <div className="rounded-xl border-2 border-red-200 bg-red-50 overflow-hidden">
+          <div className="bg-red-600 px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-red-200 font-medium uppercase tracking-widest">Descripción</p>
+              <p className="text-lg font-bold text-white leading-tight">{description}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-red-200 font-medium uppercase tracking-widest">Monto</p>
+              <p className="text-2xl font-bold text-white">{formatCurrency(parseFloat(amount))}</p>
+            </div>
+          </div>
+
+          <div className="divide-y divide-red-100">
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-gray-500">Categoría</span>
+              <span className="text-sm font-medium text-gray-800">{finalCategory}</span>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-gray-500">Método</span>
+              <span className="text-sm font-medium text-gray-800">
+                {method === "efectivo" ? "💵 Efectivo" : "🏦 Transferencia"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-gray-500">Fecha</span>
+              <span className="text-sm font-medium text-gray-800">{formatDateDisplay(date)}</span>
+            </div>
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-gray-500">Se registra en</span>
+              <span className="text-sm font-semibold text-gray-800">
+                {formatMonthLabel(date.slice(0, 7))}
+              </span>
+            </div>
+            {method === "transferencia" && (
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-gray-500">Comprobante</span>
+                <span className={`text-sm font-medium ${receiptFile ? "text-green-700" : "text-amber-600"}`}>
+                  {receiptFile ? `📎 ${receiptFile.name}` : "Sin adjunto"}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+
+        <div className="flex gap-3 pt-1">
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="flex-1 px-4 py-2.5 text-sm font-semibold border-2 border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            ← Corregir
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 text-sm font-bold bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Registrando…" : "Confirmar gasto"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Form ────────────────────────────────────────────────────
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleReview} className="space-y-4">
+
+      {/* Grace period warning */}
+      {graceMonth && (
+        <div className="bg-amber-50 border border-amber-300 rounded-lg px-3 py-2.5">
+          <p className="text-xs text-amber-800">
+            <strong>Período de gracia:</strong> podés registrar gastos de{" "}
+            <strong>{formatMonthLabel(graceMonth)}</strong> hasta el día 5 de este mes.
+            Después el mes queda cerrado.
+          </p>
+        </div>
+      )}
+
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Descripción *</label>
         <input
@@ -157,11 +294,18 @@ export default function ExpenseForm({ categories, onSuccess, onCancel }: Props) 
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Fecha *
+            <span className="ml-1 text-xs font-normal text-gray-400">
+              (desde {minDate.slice(8)}/{minDate.slice(5, 7)} hasta día 5 del mes siguiente)
+            </span>
+          </label>
           <input
             type="date"
             required
             value={date}
+            min={minDate}
+            max={maxDate}
             onChange={(e) => setDate(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -191,25 +335,23 @@ export default function ExpenseForm({ categories, onSuccess, onCancel }: Props) 
         </div>
       </div>
 
-      {/* Transfer: upload receipt */}
       {method === "transferencia" && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Comprobante de transferencia</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Comprobante</label>
           <input
             type="file"
             accept="image/*,.pdf"
             onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)}
             className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
-          <p className="text-xs text-gray-400 mt-1">JPG, PNG o PDF. Se guarda para consulta de vecinos.</p>
+          <p className="text-xs text-gray-400 mt-1">JPG, PNG o PDF.</p>
         </div>
       )}
 
-      {/* Cash: explain what happens */}
       {method === "efectivo" && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
           <p className="text-xs text-amber-800">
-            <strong>Pago en efectivo:</strong> al guardar se generará automáticamente un comprobante descargable y se actualizará el balance de Caja.
+            <strong>Efectivo:</strong> al confirmar se genera un comprobante descargable.
           </p>
         </div>
       )}
@@ -218,7 +360,7 @@ export default function ExpenseForm({ categories, onSuccess, onCancel }: Props) 
 
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" loading={loading}>Registrar gasto</Button>
+        <Button type="submit">Revisar gasto →</Button>
       </div>
     </form>
   );
