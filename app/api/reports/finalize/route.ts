@@ -327,7 +327,8 @@ export async function POST(request: Request) {
     units_total: units.length,
   };
 
-  await svc.from("monthly_reports").upsert({
+  await svc.from("monthly_reports").delete().eq("month", month);
+  await svc.from("monthly_reports").insert({
     month, report_html: html, summary, generated_at: generatedAt.toISOString(),
   });
 

@@ -82,6 +82,15 @@ async function AdminDashboard({ month }: { month: string }) {
   const bankInterest = Number((currentAb as any)?.bank_interest ?? 0);
   const openingSet   = !!currentAb;
 
+  // Props for AdminBalanceSetup
+  const [curY, curM] = month.split("-").map(Number);
+  const prevMNum = curM === 1 ? 12 : curM - 1;
+  const prevYNum = curM === 1 ? curY - 1 : curY;
+  const prevMonthStr = `${prevYNum}-${String(prevMNum).padStart(2, "0")}`;
+  const prevMonthLabel = formatMonthLabel(prevMonthStr);
+  const openingNotes = (currentAb as any)?.notes ?? null;
+  const isGracePeriod = new Date().getDate() <= 5;
+
   // Filter by date (received this month) — consistent with Resumen page
   const cashIn  = allPayments.filter(p => p.date.startsWith(month) && p.method === "efectivo").reduce((s, p) => s + Number(p.amount), 0);
   const bankIn  = allPayments.filter(p => p.date.startsWith(month) && p.method === "transferencia").reduce((s, p) => s + Number(p.amount), 0);
@@ -130,16 +139,14 @@ async function AdminDashboard({ month }: { month: string }) {
         </div>
       </div>
 
-      {/* Opening balance setup (one-time, first of each month) */}
-      {!openingSet && (
-        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-          <p className="text-sm font-semibold text-orange-800 mb-1">⚠️ Saldo inicial del mes no configurado</p>
-          <p className="text-xs text-orange-600 mb-3">
-            Para mostrar el fondo total correctamente, ingresá el saldo arrastrado del mes anterior.
-          </p>
-          <AdminBalanceSetup month={month} />
-        </div>
-      )}
+      {/* Opening balance setup / bank interest */}
+      <AdminBalanceSetup
+        month={month}
+        prevMonthLabel={prevMonthLabel}
+        openingNotes={openingNotes}
+        isGracePeriod={isGracePeriod}
+        bankInterest={bankInterest}
+      />
 
       {/* Two-account balance cards */}
       <div className="grid grid-cols-2 gap-3">
