@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Button from "@/components/ui/Button";
-import { currentMonth, formatMonthLabel } from "@/lib/utils";
+import { currentMonth, formatMonthLabel, formatCurrency } from "@/lib/utils";
 
 function buildMonthOptions(): string[] {
   const options: string[] = [];
@@ -11,7 +11,14 @@ function buildMonthOptions(): string[] {
   for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
     options.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
-  return options; // Dec 2025 → Dec 2026 (oldest → newest)
+  return options;
+}
+
+function formatDateDisplay(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-");
+  return new Date(Number(y), Number(m) - 1, Number(d)).toLocaleDateString("es-AR", {
+    day: "2-digit", month: "long", year: "numeric",
+  });
 }
 
 interface Unit { id: string; name: string; }
@@ -36,12 +43,13 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirming, setConfirming] = useState(false);
 
   function toggleMonth(m: string) {
     setSelectedMonths(prev => {
       const next = new Set(prev);
       if (next.has(m)) {
-        if (next.size > 1) next.delete(m); // at least one must stay selected
+        if (next.size > 1) next.delete(m);
       } else {
         next.add(m);
       }
@@ -49,16 +57,20 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
     });
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleReview(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!unitId || !amount) { setError("Completá todos los campos obligatorios."); return; }
     if (selectedMonths.size === 0) { setError("Seleccioná al menos un mes."); return; }
+    setConfirming(true);
+  }
+
+  async function handleConfirm() {
+    setError("");
     setLoading(true);
 
     let receipt_url: string | null = null;
 
-    // Upload transfer receipt if provided
     if (method === "transferencia" && receiptFile) {
       const ext = receiptFile.name.split(".").pop() ?? "pdf";
       const filename = `payment-${Date.now()}.${ext}`;
@@ -68,13 +80,13 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
       if (uploadErr) {
         setError("Error al subir el comprobante: " + uploadErr.message);
         setLoading(false);
+        setConfirming(false);
         return;
       }
       const { data: { publicUrl } } = supabase.storage.from("receipts").getPublicUrl(filename);
       receipt_url = publicUrl;
     }
 
-    // Insert one payment row per selected month
     const months = Array.from(selectedMonths).sort();
     const rows = months.map(m => ({
       unit_id: unitId,
@@ -89,23 +101,118 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
     const { data, error: insertErr } = await supabase
       .from("payments")
       .insert(rows)
-      .select("id")
+      .select("id");
 
     if (insertErr) {
       setError("Error al registrar el pago: " + insertErr.message);
+      setConfirming(false);
     } else {
-      const firstId = data?.[0]?.id ?? "";
-      onSuccess(firstId, method === "efectivo");
+      onSuccess(data?.[0]?.id ?? "", method === "efectivo");
     }
     setLoading(false);
   }
 
-  const monthsLabel = Array.from(selectedMonths).sort()
-    .map(m => formatMonthLabel(m).split(" de ")[0]) // just "abril", "mayo"
-    .join(", ");
+  const unitName = units.find(u => u.id === unitId)?.name ?? "";
+  const sortedSelectedMonths = Array.from(selectedMonths).sort();
+  const totalAmount = parseFloat(amount || "0") * selectedMonths.size;
 
+  // ── Confirmation screen ──────────────────────────────────────
+  if (confirming) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-2xl">🔍</span>
+          <h3 className="text-base font-bold text-gray-900">Confirmá los datos antes de registrar</h3>
+        </div>
+
+        {/* Summary card */}
+        <div className="rounded-xl border-2 border-blue-200 bg-blue-50 overflow-hidden">
+          {/* Unit + method header */}
+          <div className="bg-blue-600 px-4 py-3 flex items-center justify-between">
+            <div>
+              <p className="text-xs text-blue-200 font-medium uppercase tracking-widest">Unidad</p>
+              <p className="text-2xl font-bold text-white">{unitName}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-blue-200 font-medium uppercase tracking-widest">Método</p>
+              <p className="text-lg font-bold text-white">
+                {method === "efectivo" ? "💵 Efectivo" : "🏦 Transferencia"}
+              </p>
+            </div>
+          </div>
+
+          {/* Details */}
+          <div className="divide-y divide-blue-100">
+            {/* Months + amounts */}
+            {sortedSelectedMonths.map(m => (
+              <div key={m} className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm font-medium text-gray-700">{formatMonthLabel(m)}</span>
+                <span className="text-base font-bold text-gray-900">{formatCurrency(parseFloat(amount))}</span>
+              </div>
+            ))}
+
+            {/* Total if multiple months */}
+            {selectedMonths.size > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 bg-blue-100/60">
+                <span className="text-sm font-bold text-blue-800">
+                  Total ({selectedMonths.size} meses)
+                </span>
+                <span className="text-lg font-bold text-blue-900">{formatCurrency(totalAmount)}</span>
+              </div>
+            )}
+
+            {/* Date */}
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm text-gray-500">Fecha del pago</span>
+              <span className="text-sm font-medium text-gray-800">{formatDateDisplay(date)}</span>
+            </div>
+
+            {/* Receipt */}
+            {method === "transferencia" && (
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-gray-500">Comprobante</span>
+                <span className={`text-sm font-medium ${receiptFile ? "text-green-700" : "text-amber-600"}`}>
+                  {receiptFile ? `📎 ${receiptFile.name}` : "Sin adjunto"}
+                </span>
+              </div>
+            )}
+
+            {/* Notes */}
+            {notes && (
+              <div className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm text-gray-500">Notas</span>
+                <span className="text-sm text-gray-700 italic">{notes}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+
+        <div className="flex gap-3 pt-1">
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="flex-1 px-4 py-2.5 text-sm font-semibold border-2 border-gray-200 rounded-xl text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            ← Corregir
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 text-sm font-bold bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Registrando…" : `Confirmar ${selectedMonths.size > 1 ? `${selectedMonths.size} pagos` : "pago"}`}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Form ────────────────────────────────────────────────────
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleReview} className="space-y-4">
       {/* Unit */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
@@ -137,8 +244,7 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
         />
         {selectedMonths.size > 1 && amount && (
           <p className="text-xs text-blue-600 mt-1">
-            Se registrarán {selectedMonths.size} pagos de ${parseFloat(amount).toLocaleString("es-AR")} c/u
-            — total ${(parseFloat(amount) * selectedMonths.size).toLocaleString("es-AR")}
+            {selectedMonths.size} meses × {formatCurrency(parseFloat(amount))} = <strong>{formatCurrency(totalAmount)}</strong> total
           </p>
         )}
       </div>
@@ -147,9 +253,6 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Meses que cubre este pago *
-          {selectedMonths.size > 0 && (
-            <span className="ml-2 text-blue-600 font-normal">{monthsLabel}</span>
-          )}
         </label>
         <div className="border border-gray-200 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
           {allMonths.map((m, idx) => {
@@ -204,12 +307,9 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
         </div>
       </div>
 
-      {/* Transfer receipt */}
       {method === "transferencia" && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Comprobante de transferencia
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Comprobante</label>
           <input
             type="file"
             accept="image/*,.pdf"
@@ -222,12 +322,11 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
       {method === "efectivo" && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
           <p className="text-xs text-amber-800">
-            <strong>Efectivo:</strong> al guardar se genera un comprobante descargable para entregar al vecino.
+            <strong>Efectivo:</strong> al confirmar se genera un comprobante descargable para entregar al vecino.
           </p>
         </div>
       )}
 
-      {/* Date + Notes */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Fecha del pago</label>
@@ -254,8 +353,8 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
 
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" loading={loading}>
-          Registrar {selectedMonths.size > 1 ? `${selectedMonths.size} pagos` : "pago"}
+        <Button type="submit">
+          Revisar pago →
         </Button>
       </div>
     </form>
