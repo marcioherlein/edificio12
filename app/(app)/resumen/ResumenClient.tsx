@@ -2,6 +2,10 @@
 import { useRouter } from "next/navigation";
 import { formatCurrency, formatDate, formatMonthLabel } from "@/lib/utils";
 import Card from "@/components/ui/Card";
+import Modal from "@/components/ui/Modal";
+import PaymentForm from "@/components/admin/PaymentForm";
+import ExpenseForm from "@/components/admin/ExpenseForm";
+import { useState } from "react";
 
 interface Unit { id: string; name: string; owner_name: string; }
 interface Expense { id: string; description: string; amount: number; method: string; date: string; category: string; }
@@ -18,6 +22,8 @@ interface Props {
   lastDateByUnit: Record<string, string>;
   expenses: Expense[];
   accountBalance: AccountBalance | null;
+  isAdmin: boolean;
+  categories: { id: string; name: string }[];
 }
 
 // 8-column grid: Depto | Propietario | Anterior | Expensa | Efectivo | Transf. | Fecha | Saldo
@@ -26,9 +32,20 @@ const ING_COLS = "grid-cols-[2fr_2fr_1fr_1fr_1fr_1fr_1.4fr_1.1fr]";
 export default function ResumenClient({
   month, availableMonths, units, feeAmount,
   openingByUnit, cashByUnit, transferByUnit, lastDateByUnit,
-  expenses, accountBalance,
+  expenses, accountBalance, isAdmin, categories,
 }: Props) {
   const router = useRouter();
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+
+  function onPaymentSuccess() {
+    setPaymentOpen(false);
+    router.refresh();
+  }
+  function onExpenseSuccess() {
+    setExpenseOpen(false);
+    router.refresh();
+  }
 
   // ── Computed values ──────────────────────────────────────
   const cashIn          = Object.values(cashByUnit).reduce((a, b) => a + b, 0);
@@ -82,13 +99,23 @@ export default function ResumenClient({
             <span className="text-sm font-semibold text-gray-900">
               Expensas — {formatMonthLabel(month)}
             </span>
-            <div className="flex gap-3 text-xs">
-              <span className="text-gray-400">
-                💵 <span className="text-green-700 font-semibold">{formatCurrency(cashIn)}</span>
-              </span>
-              <span className="text-gray-400">
-                🏦 <span className="text-blue-700 font-semibold">{formatCurrency(transferIn + bankInterest)}</span>
-              </span>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-3 text-xs">
+                <span className="text-gray-400">
+                  💵 <span className="text-green-700 font-semibold">{formatCurrency(cashIn)}</span>
+                </span>
+                <span className="text-gray-400">
+                  🏦 <span className="text-blue-700 font-semibold">{formatCurrency(transferIn + bankInterest)}</span>
+                </span>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => setPaymentOpen(true)}
+                  className="text-xs font-medium bg-gray-900 text-white px-2.5 py-1.5 rounded-lg hover:bg-gray-700 transition-colors whitespace-nowrap"
+                >
+                  + Pago
+                </button>
+              )}
             </div>
           </div>
 
@@ -218,16 +245,26 @@ export default function ResumenClient({
             <span className="text-sm font-semibold text-gray-900">
               Gastos — {formatMonthLabel(month)}
             </span>
-            <div className="flex gap-3 text-xs">
-              {cashExpenses > 0 && (
-                <span className="text-gray-400">
-                  💵 <span className="text-green-700 font-semibold">{formatCurrency(cashExpenses)}</span>
-                </span>
-              )}
-              {transferExpenses > 0 && (
-                <span className="text-gray-400">
-                  🏦 <span className="text-red-600 font-semibold">{formatCurrency(transferExpenses)}</span>
-                </span>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-3 text-xs">
+                {cashExpenses > 0 && (
+                  <span className="text-gray-400">
+                    💵 <span className="text-green-700 font-semibold">{formatCurrency(cashExpenses)}</span>
+                  </span>
+                )}
+                {transferExpenses > 0 && (
+                  <span className="text-gray-400">
+                    🏦 <span className="text-red-600 font-semibold">{formatCurrency(transferExpenses)}</span>
+                  </span>
+                )}
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => setExpenseOpen(true)}
+                  className="text-xs font-medium bg-gray-900 text-white px-2.5 py-1.5 rounded-lg hover:bg-gray-700 transition-colors whitespace-nowrap"
+                >
+                  + Gasto
+                </button>
               )}
             </div>
           </div>
@@ -366,6 +403,26 @@ export default function ResumenClient({
       </section>
 
       <div className="h-4" />
+
+      {/* Modals — admin only */}
+      {isAdmin && (
+        <>
+          <Modal open={paymentOpen} onClose={() => setPaymentOpen(false)} title="Registrar pago">
+            <PaymentForm
+              units={units.map(u => ({ id: u.id, name: u.name }))}
+              onSuccess={onPaymentSuccess}
+              onCancel={() => setPaymentOpen(false)}
+            />
+          </Modal>
+          <Modal open={expenseOpen} onClose={() => setExpenseOpen(false)} title="Registrar gasto">
+            <ExpenseForm
+              categories={categories}
+              onSuccess={onExpenseSuccess}
+              onCancel={() => setExpenseOpen(false)}
+            />
+          </Modal>
+        </>
+      )}
     </div>
   );
 }

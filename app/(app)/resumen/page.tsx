@@ -27,8 +27,9 @@ export default async function ResumenPage({
   const svc = createServiceClient();
   const params = await searchParams;
   const month = params.month ?? currentMonth();
+  const isAdmin = profile?.role === "admin";
 
-  const [unitsRes, feeRes, accountBalRes, unitBalancesRes, paymentsRes, expensesRes, monthsRes] =
+  const [unitsRes, feeRes, accountBalRes, unitBalancesRes, paymentsRes, expensesRes, monthsRes, categoriesRes] =
     await Promise.all([
       svc.from("units").select("id, name, owner_name").order("name"),
       svc.from("monthly_fees").select("amount").eq("month", month).single(),
@@ -43,6 +44,7 @@ export default async function ResumenPage({
         .lt("date", nextMonthStr(month))
         .order("date"),
       svc.from("account_balances").select("month").order("month", { ascending: false }),
+      svc.from("expense_categories").select("id, name").order("name"),
     ]);
 
   const openingByUnit: Record<string, number> = {};
@@ -84,6 +86,8 @@ export default async function ResumenPage({
         bank_opening: Number(ab.bank_opening),
         bank_interest: Number((ab as any).bank_interest ?? 0),
       } : null}
+      isAdmin={isAdmin}
+      categories={categoriesRes.data ?? []}
     />
   );
 }

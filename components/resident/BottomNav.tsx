@@ -2,23 +2,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const ADMIN_NAV = [
-  { href: "/dashboard",     label: "Inicio",   icon: "🏠" },
-  { href: "/payments",      label: "Pagos",    icon: "💳" },
-  { href: "/resumen",       label: "Resumen",  icon: "📋" },
-  { href: "/expenses",      label: "Gastos",   icon: "📊" },
-  { href: "/documents",     label: "Docs",     icon: "📄" },
-];
-
-const RESIDENT_NAV = [
-  { href: "/dashboard", label: "Inicio",   icon: "🏠" },
-  { href: "/resumen",   label: "Resumen",  icon: "📋" },
-  { href: "/documents", label: "Docs",     icon: "📄" },
+const NAV_ITEMS = [
+  { href: "/dashboard", label: "Inicio",  icon: "🏠" },
+  { href: "/resumen",   label: "Resumen", icon: "📋" },
+  { href: "/documents", label: "Docs",    icon: "📄" },
 ];
 
 export default function BottomNav({ role }: { role: string }) {
   const pathname = usePathname();
-  const NAV_ITEMS = role === "admin" ? ADMIN_NAV : RESIDENT_NAV;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 shadow-lg">
