@@ -251,9 +251,12 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
 
       {/* Month checklist */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Meses que cubre este pago *
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Período que cubre este pago *
         </label>
+        <p className="text-xs text-gray-400 mb-2">
+          El pago se contabiliza en el mes en que se recibe. Indicá qué meses salda esta cobranza.
+        </p>
         <div className="border border-gray-200 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
           {allMonths.map((m, idx) => {
             const checked = selectedMonths.has(m);

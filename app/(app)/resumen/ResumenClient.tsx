@@ -8,7 +8,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Unit { id: string; name: string; owner_name: string; }
-interface Payment { id: string; unit_id: string; amount: number; method: string; date: string; notes: string | null; }
+interface Payment { id: string; unit_id: string; amount: number; method: string; month: string; date: string; notes: string | null; }
 interface Expense { id: string; description: string; amount: number; method: string; date: string; category: string; }
 interface AccountBalance { cash_opening: number; bank_opening: number; bank_interest: number; }
 
@@ -224,11 +224,16 @@ export default function ResumenClient({
                               <span className="text-xl">{p.method === "efectivo" ? "💵" : "🏦"}</span>
                               <div>
                                 <span className="text-base font-bold text-white">{formatCurrency(p.amount)}</span>
-                                <div className="flex items-center gap-2 mt-0.5">
+                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                   <span className="text-sm text-gray-400">{formatDate(p.date)}</span>
                                   <span className={`text-xs px-2 py-0.5 rounded-full ${p.method === "efectivo" ? "bg-green-900/50 text-green-300" : "bg-blue-900/50 text-blue-300"}`}>
                                     {p.method === "efectivo" ? "Efectivo" : "Transferencia"}
                                   </span>
+                                  {p.month !== month && (
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-900/50 text-amber-300 font-medium">
+                                      cubre {formatMonthLabel(p.month)}
+                                    </span>
+                                  )}
                                   {p.notes && <span className="text-xs text-gray-500 italic">{p.notes}</span>}
                                 </div>
                               </div>
@@ -501,7 +506,7 @@ function EditPaymentForm({
     payment.method === "efectivo" ? "efectivo" : "transferencia"
   );
   const [date, setDate] = useState(payment.date);
-  const [month, setMonth] = useState(payment.date.slice(0, 7));
+  const [month, setMonth] = useState(payment.month);
   const [notes, setNotes] = useState(payment.notes ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

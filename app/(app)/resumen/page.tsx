@@ -37,7 +37,12 @@ export default async function ResumenPage({
         .select("cash_opening, bank_opening, bank_interest")
         .eq("month", month).single(),
       svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
-      svc.from("payments").select("id, unit_id, amount, method, date, notes").eq("month", month).order("date"),
+      // Payments received during this calendar month (by date, not by attributed month)
+      // This ensures debt payments registered in the current month reduce the current balance
+      svc.from("payments").select("id, unit_id, amount, method, month, date, notes")
+        .gte("date", `${month}-01`)
+        .lt("date", nextMonthStr(month))
+        .order("date"),
       svc.from("expenses")
         .select("id, description, amount, method, date, category")
         .gte("date", `${month}-01`)
@@ -69,6 +74,7 @@ export default async function ResumenPage({
     unit_id: p.unit_id,
     amount: Number(p.amount),
     method: p.method as string,
+    month: p.month as string,
     date: p.date as string,
     notes: p.notes as string | null,
   }));
