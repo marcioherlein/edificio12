@@ -130,19 +130,14 @@ async function AdminDashboard({ month }: { month: string }) {
         </div>
       </div>
 
-      {/* Opening balance setup / edit */}
-      {!openingSet ? (
+      {/* Opening balance setup (one-time, first of each month) */}
+      {!openingSet && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
           <p className="text-sm font-semibold text-orange-800 mb-1">⚠️ Saldo inicial del mes no configurado</p>
           <p className="text-xs text-orange-600 mb-3">
             Para mostrar el fondo total correctamente, ingresá el saldo arrastrado del mes anterior.
           </p>
           <AdminBalanceSetup month={month} />
-        </div>
-      ) : (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Saldo apertura del mes</p>
-          <AdminBalanceSetup month={month} current={{ cash: cashOpening, bank: bankOpening }} />
         </div>
       )}
 

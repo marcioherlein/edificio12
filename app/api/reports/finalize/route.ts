@@ -1,7 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { formatCurrency, formatDate, formatMonthLabel, getPaymentStatus } from "@/lib/utils";
+import { formatCurrency, formatDate, formatMonthLabel } from "@/lib/utils";
 
 // Can be called by:
 //  - Vercel cron (Authorization: Bearer {CRON_SECRET})
@@ -92,6 +92,9 @@ export async function POST(request: Request) {
     weekday: "long", day: "2-digit", month: "long", year: "numeric",
   });
   const generatedTime  = generatedAt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+
+  const lastDay         = new Date(y, m, 0).getDate();
+  const closingDateLabel = `${String(lastDay).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
 
   // ── Build formal HTML ────────────────────────────────────────────────────────
   const html = `<!DOCTYPE html>
@@ -185,24 +188,25 @@ export async function POST(request: Request) {
       <tr>
         <th>Depto.</th>
         <th>Propietario / Inquilino</th>
-        <th>Deuda anterior</th>
-        <th>Expensa mes</th>
+        <th>Anterior</th>
+        <th>Expensa</th>
         <th>Efectivo</th>
         <th>Transferencia</th>
         <th>Fecha pago</th>
-        <th>Estado</th>
+        <th>${closingDateLabel}</th>
       </tr>
     </thead>
     <tbody>
       ${units.map((u) => {
-        const cash    = cashByUnit[u.id] ?? 0;
-        const bank    = bankByUnit[u.id] ?? 0;
-        const paid    = cash + bank;
+        const cash     = cashByUnit[u.id] ?? 0;
+        const bank     = bankByUnit[u.id] ?? 0;
         const anterior = openingByUnit[u.id] ?? 0;
-        const status  = getPaymentStatus(paid, feeAmount + anterior);
-        const rowClass = status === "PAGADO" ? "paid" : status === "PARCIAL" ? "partial" : "pending";
+        const saldo    = anterior + feeAmount - cash - bank;
+        const isPaid   = saldo <= 0;
+        const hasPaid  = (cash + bank) > 0;
+        const rowClass = isPaid ? "paid" : hasPaid ? "partial" : "pending";
         const lastDate = dateByUnit[u.id] ?? "";
-        const owner   = u.owner_name ?? "—";
+        const owner    = u.owner_name ?? "—";
         return `<tr class="${rowClass}">
           <td><strong>${u.name}</strong></td>
           <td class="left">${owner}</td>
@@ -211,11 +215,11 @@ export async function POST(request: Request) {
           <td>${cash > 0 ? formatCurrency(cash) : "—"}</td>
           <td>${bank > 0 ? formatCurrency(bank) : "—"}</td>
           <td>${lastDate ? formatDate(lastDate) : "—"}</td>
-          <td><strong>${status}</strong></td>
+          <td><strong>${saldo > 0 ? formatCurrency(saldo) : "✓"}</strong></td>
         </tr>`;
       }).join("")}
       <tr class="subtotal-row">
-        <td colspan="4">Total ingresos</td>
+        <td colspan="4">Total ingresos del mes</td>
         <td>${formatCurrency(totalCashIn)}</td>
         <td>${formatCurrency(totalBankIn)}</td>
         <td></td>
@@ -316,8 +320,9 @@ export async function POST(request: Request) {
     bank_balance: bankOpening + totalBankIn + bankInterest - totalBankOut,
     fund,
     units_paid: units.filter(u => {
-      const paid = (cashByUnit[u.id] ?? 0) + (bankByUnit[u.id] ?? 0);
-      return getPaymentStatus(paid, feeAmount) === "PAGADO";
+      const anterior = openingByUnit[u.id] ?? 0;
+      const saldo = anterior + feeAmount - (cashByUnit[u.id] ?? 0) - (bankByUnit[u.id] ?? 0);
+      return saldo <= 0;
     }).length,
     units_total: units.length,
   };
