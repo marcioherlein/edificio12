@@ -31,6 +31,21 @@ interface Props {
 // 8 columns: Depto | Propietario | Anterior | Expensa | Efectivo | Transf. | Fecha | Saldo
 const ING_COLS = "grid-cols-[1.8fr_2.2fr_1.2fr_1.2fr_1.2fr_1.2fr_1.4fr_1.2fr]";
 
+/** Month is open for new payments/expenses if it's the current month,
+ *  or the previous month within the 5-day grace period. */
+function isMonthOpen(month: string): boolean {
+  const now = new Date();
+  const cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  if (month === cur) return true;
+  if (now.getDate() <= 5) {
+    const prevY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
+    const prev = `${prevY}-${String(prevM).padStart(2, "0")}`;
+    if (month === prev) return true;
+  }
+  return false;
+}
+
 export default function ResumenClient({
   month, availableMonths, units, feeAmount,
   openingByUnit, cashByUnit, transferByUnit, lastDateByUnit,
@@ -41,6 +56,8 @@ export default function ResumenClient({
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
+
+  const canEdit = isAdmin && isMonthOpen(month);
 
   const paymentsByUnit: Record<string, Payment[]> = {};
   for (const p of payments) {
@@ -100,6 +117,16 @@ export default function ResumenClient({
           ))}
         </div>
 
+        {/* Closed month notice for admin */}
+        {isAdmin && !canEdit && (
+          <div className="flex items-center gap-2 bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-2.5">
+            <span className="text-gray-400 text-sm">🔒</span>
+            <p className="text-sm text-gray-400">
+              <span className="font-semibold text-gray-300">{formatMonthLabel(month)}</span> está cerrado — solo lectura.
+            </p>
+          </div>
+        )}
+
         {/* ════════════════════════════════════════════════
             INGRESOS
         ════════════════════════════════════════════════ */}
@@ -111,7 +138,7 @@ export default function ResumenClient({
               <h2 className="text-lg font-bold text-white">Ingresos</h2>
               <span className="text-blue-400 text-sm font-medium">{formatMonthLabel(month)}</span>
             </div>
-            {isAdmin && (
+            {canEdit && (
               <button
                 onClick={() => setPaymentOpen(true)}
                 className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-lg shadow-blue-900/30"
@@ -238,7 +265,7 @@ export default function ResumenClient({
                                 </div>
                               </div>
                             </div>
-                            {isAdmin && (
+                            {canEdit && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setEditPayment(p); }}
                                 className="text-sm font-medium text-blue-400 hover:text-white bg-blue-900/40 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors"
@@ -307,7 +334,7 @@ export default function ResumenClient({
               <h2 className="text-lg font-bold text-white">Egresos</h2>
               <span className="text-red-400 text-sm font-medium">{formatMonthLabel(month)}</span>
             </div>
-            {isAdmin && (
+            {canEdit && (
               <button
                 onClick={() => setExpenseOpen(true)}
                 className="flex items-center gap-1.5 bg-red-700 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-lg shadow-red-900/30"
@@ -428,7 +455,7 @@ export default function ResumenClient({
       </div>
 
       {/* ── Modals ─────────────────────────────────────────── */}
-      {isAdmin && (
+      {canEdit && (
         <>
           <Modal open={paymentOpen} onClose={() => setPaymentOpen(false)} title="Registrar pago">
             <PaymentForm
