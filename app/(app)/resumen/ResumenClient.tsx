@@ -203,9 +203,18 @@ export default function ResumenClient({
                   {/* Expanded payment detail */}
                   {expanded && (
                     <div className="bg-blue-950/40 border-t border-blue-900/40 px-5 py-4 space-y-2">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-blue-400 mb-3">
-                        Pagos registrados — {unit.name} · {unit.owner_name}
-                      </p>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
+                          Pagos registrados — {unit.name} · {unit.owner_name}
+                        </p>
+                        <a
+                          href={`/unidad/${unit.id}`}
+                          className="text-xs font-semibold text-blue-400 hover:text-blue-200 bg-blue-900/40 hover:bg-blue-800/60 px-3 py-1.5 rounded-lg transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Ver historial completo →
+                        </a>
+                      </div>
                       {unitPays.length === 0 ? (
                         <p className="text-sm text-gray-500 py-2">Sin pagos registrados este mes.</p>
                       ) : (

@@ -7,13 +7,12 @@ import { currentMonth, formatMonthLabel } from "@/lib/utils";
 function buildMonthOptions(): string[] {
   const now = new Date();
   const options: string[] = [];
-  // from March 2026 up to 2 months ahead
   const start = new Date(2026, 2, 1); // March 2026
   const end = new Date(now.getFullYear(), now.getMonth() + 2, 1);
-  for (let d = new Date(end); d >= start; d.setMonth(d.getMonth() - 1)) {
+  for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
     options.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
   }
-  return options;
+  return options; // oldest → newest (Jan → future)
 }
 
 interface Unit { id: string; name: string; }
@@ -26,20 +25,36 @@ interface Props {
 
 export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
   const supabase = createClient();
+  const cur = currentMonth();
+  const allMonths = buildMonthOptions();
+
   const [unitId, setUnitId] = useState("");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"efectivo" | "transferencia">("efectivo");
-  const [month, setMonth] = useState(currentMonth());
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set([cur]));
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  function toggleMonth(m: string) {
+    setSelectedMonths(prev => {
+      const next = new Set(prev);
+      if (next.has(m)) {
+        if (next.size > 1) next.delete(m); // at least one must stay selected
+      } else {
+        next.add(m);
+      }
+      return next;
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!unitId || !amount) { setError("Completá todos los campos obligatorios."); return; }
+    if (selectedMonths.size === 0) { setError("Seleccioná al menos un mes."); return; }
     setLoading(true);
 
     let receipt_url: string | null = null;
@@ -60,30 +75,39 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
       receipt_url = publicUrl;
     }
 
+    // Insert one payment row per selected month
+    const months = Array.from(selectedMonths).sort();
+    const rows = months.map(m => ({
+      unit_id: unitId,
+      amount: parseFloat(amount),
+      method,
+      month: m,
+      date,
+      notes: notes || null,
+      receipt_url,
+    }));
+
     const { data, error: insertErr } = await supabase
       .from("payments")
-      .insert({
-        unit_id: unitId,
-        amount: parseFloat(amount),
-        method,
-        month,
-        date,
-        notes: notes || null,
-        receipt_url,
-      })
+      .insert(rows)
       .select("id")
-      .single();
 
     if (insertErr) {
       setError("Error al registrar el pago: " + insertErr.message);
     } else {
-      onSuccess(data.id, method === "efectivo");
+      const firstId = data?.[0]?.id ?? "";
+      onSuccess(firstId, method === "efectivo");
     }
     setLoading(false);
   }
 
+  const monthsLabel = Array.from(selectedMonths).sort()
+    .map(m => formatMonthLabel(m).split(" de ")[0]) // just "abril", "mayo"
+    .join(", ");
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Unit */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
         <select
@@ -99,35 +123,65 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Monto *</label>
-          <input
-            type="number"
-            required
-            min="0"
-            step="0.01"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="0.00"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Mes *</label>
-          <select
-            required
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {buildMonthOptions().map((m) => (
-              <option key={m} value={m}>{formatMonthLabel(m)}</option>
-            ))}
-          </select>
+      {/* Amount */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Monto por mes *</label>
+        <input
+          type="number"
+          required
+          min="0"
+          step="0.01"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="0.00"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {selectedMonths.size > 1 && amount && (
+          <p className="text-xs text-blue-600 mt-1">
+            Se registrarán {selectedMonths.size} pagos de ${parseFloat(amount).toLocaleString("es-AR")} c/u
+            — total ${(parseFloat(amount) * selectedMonths.size).toLocaleString("es-AR")}
+          </p>
+        )}
+      </div>
+
+      {/* Month checklist */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Meses que cubre este pago *
+          {selectedMonths.size > 0 && (
+            <span className="ml-2 text-blue-600 font-normal">{monthsLabel}</span>
+          )}
+        </label>
+        <div className="border border-gray-200 rounded-lg overflow-hidden max-h-52 overflow-y-auto">
+          {allMonths.map((m, idx) => {
+            const checked = selectedMonths.has(m);
+            const isCurrent = m === cur;
+            return (
+              <label
+                key={m}
+                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors border-b border-gray-100 last:border-b-0 ${
+                  checked ? "bg-blue-50" : idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                } hover:bg-blue-50`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleMonth(m)}
+                  className="w-4 h-4 rounded text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className={`text-sm ${checked ? "font-semibold text-blue-700" : "text-gray-700"}`}>
+                  {formatMonthLabel(m)}
+                </span>
+                {isCurrent && (
+                  <span className="text-xs text-blue-500 font-medium ml-auto">mes actual</span>
+                )}
+              </label>
+            );
+          })}
         </div>
       </div>
 
+      {/* Method */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">Método de pago *</label>
         <div className="flex gap-3">
@@ -151,11 +205,11 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
         </div>
       </div>
 
-      {/* Transfer: upload receipt */}
+      {/* Transfer receipt */}
       {method === "transferencia" && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Comprobante de transferencia <span className="text-red-500">*</span>
+            Comprobante de transferencia
           </label>
           <input
             type="file"
@@ -166,15 +220,15 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
         </div>
       )}
 
-      {/* Cash: explain auto-receipt */}
       {method === "efectivo" && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
           <p className="text-xs text-amber-800">
-            <strong>Pago en efectivo:</strong> al guardar se genera un comprobante automático descargable para enviar al vecino y se suma al balance de Caja.
+            <strong>Efectivo:</strong> al guardar se genera un comprobante descargable para entregar al vecino.
           </p>
         </div>
       )}
 
+      {/* Date + Notes */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Fecha del pago</label>
@@ -201,7 +255,9 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
 
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="secondary" onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" loading={loading}>Registrar pago</Button>
+        <Button type="submit" loading={loading}>
+          Registrar {selectedMonths.size > 1 ? `${selectedMonths.size} pagos` : "pago"}
+        </Button>
       </div>
     </form>
   );
