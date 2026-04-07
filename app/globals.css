@@ -33,9 +33,24 @@
   font-display: swap;
 }
 
+/* ── SAP Fiori design tokens ─────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --fiori-shell:        #354a5e;
+  --fiori-shell-hover:  #29394a;
+  --fiori-page-bg:      #f5f6f7;
+  --fiori-card-bg:      #ffffff;
+  --fiori-border:       #e5e5e5;
+  --fiori-border-strong:#bfbfbf;
+  --fiori-blue:         #0070f2;
+  --fiori-blue-hover:   #0064d9;
+  --fiori-text:         #32363a;
+  --fiori-text-muted:   #6a6d70;
+  --fiori-success:      #107e3e;
+  --fiori-warning:      #e9730c;
+  --fiori-error:        #bb0000;
+  --fiori-table-header: #f2f2f2;
+  --background: var(--fiori-page-bg);
+  --foreground: var(--fiori-text);
 }
 
 @theme inline {
@@ -44,15 +59,8 @@
   --font-sans: "72", system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--fiori-page-bg);
+  color: var(--fiori-text);
   font-family: "72", system-ui, sans-serif;
 }

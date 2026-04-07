@@ -8,7 +8,10 @@ interface Props {
 
 export default function Card({ children, className = "", padding = true }: Props) {
   return (
-    <div className={`bg-white rounded-xl shadow-sm border border-gray-100 ${padding ? "p-5" : ""} ${className}`}>
+    <div
+      className={`bg-white border rounded ${padding ? "p-5" : ""} ${className}`}
+      style={{ borderColor: "var(--fiori-border)", boxShadow: "0 0 4px rgba(0,0,0,0.08)" }}
+    >
       {children}
     </div>
   );

@@ -12,7 +12,10 @@ export default function BottomNav({ role }: { role: string }) {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-40 shadow-2xl">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-40 shadow-[0_-2px_8px_rgba(0,0,0,0.15)]"
+      style={{ background: "var(--fiori-shell)", borderTop: "1px solid rgba(255,255,255,0.1)" }}
+    >
       <div className="flex">
         {NAV_ITEMS.map(({ href, label, icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
@@ -21,11 +24,12 @@ export default function BottomNav({ role }: { role: string }) {
               key={href}
               href={href}
               className={`flex-1 flex flex-col items-center justify-center py-3 gap-0.5 text-xs transition-colors ${
-                active ? "text-blue-400" : "text-gray-600 hover:text-gray-300"
+                active ? "text-white" : "text-white/45 hover:text-white/80"
               }`}
             >
               <span className="text-xl leading-none">{icon}</span>
-              <span className={`font-semibold text-[11px] ${active ? "text-blue-400" : ""}`}>{label}</span>
+              <span className={`font-semibold text-[11px] ${active ? "text-white" : ""}`}>{label}</span>
+              {active && <span className="absolute bottom-0 w-8 h-0.5 bg-white rounded-t" />}
             </Link>
           );
         })}

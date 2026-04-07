@@ -7,10 +7,10 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantClass: Record<string, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-400",
-  secondary: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50",
-  danger: "bg-red-600 text-white hover:bg-red-700 disabled:bg-red-400",
-  ghost: "bg-transparent text-gray-600 hover:bg-gray-100 disabled:opacity-50",
+  primary:   "bg-[#0070f2] text-white hover:bg-[#0064d9] disabled:opacity-50 border border-[#0070f2]",
+  secondary: "bg-white text-[#0070f2] border border-[#0070f2] hover:bg-[#e8f2ff] disabled:opacity-50",
+  danger:    "bg-[#bb0000] text-white hover:bg-[#a30000] disabled:opacity-50 border border-[#bb0000]",
+  ghost:     "bg-transparent text-[#32363a] hover:bg-[#f2f2f2] disabled:opacity-50 border border-transparent",
 };
 
 const sizeClass: Record<string, string> = {
@@ -32,7 +32,7 @@ export default function Button({
     <button
       {...props}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 cursor-pointer ${variantClass[variant]} ${sizeClass[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#0070f2] focus:ring-offset-1 cursor-pointer ${variantClass[variant]} ${sizeClass[size]} ${className}`}
     >
       {loading && (
         <svg className="animate-spin h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">

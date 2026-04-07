@@ -38,10 +38,11 @@ export default async function ResumenPage({
         .select("cash_opening, bank_opening, bank_interest, closed")
         .eq("month", month).single(),
       svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
-      // Payments RECEIVED this calendar month (by date) — for cash balance accounting
-      svc.from("payments").select("unit_id, amount, method")
+      // Payments RECEIVED this calendar month (by date) — used for cash balance AND as frozen ledger for closed months
+      svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url")
         .gte("date", `${month}-01`)
-        .lt("date", nextMonthStr(month)),
+        .lt("date", nextMonthStr(month))
+        .order("date"),
       // Payments ATTRIBUTED to this month (by month field) — for per-unit table & history
       svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url")
         .eq("month", month)
@@ -60,17 +61,25 @@ export default async function ResumenPage({
     openingByUnit[b.unit_id] = Number(b.opening_balance);
   }
 
-  // Per-unit breakdown uses month-attributed payments (correct ledger logic)
+  const isClosed = !!(accountBalRes.data as any)?.closed;
+
+  // For closed months: per-unit breakdown uses DATE-bounded payments (frozen snapshot).
+  // Payments entered later but attributed to this month must NOT bleed into a closed view.
+  // For open months: use month-attributed payments (correct ledger logic for advance/retroactive payments).
+  const ledgerPayments = isClosed
+    ? (paymentsByDateRes.data ?? [])
+    : (paymentsByMonthRes.data ?? []);
+
   const cashByUnit: Record<string, number> = {};
   const transferByUnit: Record<string, number> = {};
   const lastDateByUnit: Record<string, string> = {};
-  for (const p of paymentsByMonthRes.data ?? []) {
+  for (const p of ledgerPayments) {
     if (p.method === "efectivo") {
       cashByUnit[p.unit_id] = (cashByUnit[p.unit_id] ?? 0) + Number(p.amount);
     } else {
       transferByUnit[p.unit_id] = (transferByUnit[p.unit_id] ?? 0) + Number(p.amount);
     }
-    lastDateByUnit[p.unit_id] = p.date;
+    if (p.date) lastDateByUnit[p.unit_id] = p.date;
   }
 
   // Cash balance totals use date-received payments (correct accounting)
@@ -81,16 +90,28 @@ export default async function ResumenPage({
     .filter(p => p.method === "transferencia")
     .reduce((s, p) => s + Number(p.amount), 0);
 
-  const payments = (paymentsByMonthRes.data ?? []).map((p: any) => ({
-    id: p.id,
-    unit_id: p.unit_id,
-    amount: Number(p.amount),
-    method: p.method as string,
-    month: p.month as string,
-    date: p.date as string,
-    notes: p.notes as string | null,
-    receipt_url: p.receipt_url as string | null,
-  }));
+  // Expanded payment detail: for closed months use date-bounded payments; for open months use month-attributed
+  const detailPayments = isClosed
+    ? (paymentsByDateRes.data ?? []).map((p: any) => ({
+        id: p.id ?? "",
+        unit_id: p.unit_id,
+        amount: Number(p.amount),
+        method: p.method as string,
+        month: p.month ?? month,
+        date: p.date as string,
+        notes: p.notes as string | null,
+        receipt_url: p.receipt_url as string | null,
+      }))
+    : (paymentsByMonthRes.data ?? []).map((p: any) => ({
+        id: p.id,
+        unit_id: p.unit_id,
+        amount: Number(p.amount),
+        method: p.method as string,
+        month: p.month as string,
+        date: p.date as string,
+        notes: p.notes as string | null,
+        receipt_url: p.receipt_url as string | null,
+      }));
 
   // Future months only visible to admin
   const monthSet = new Set((monthsRes.data ?? []).map((r: any) => r.month as string));
@@ -99,7 +120,6 @@ export default async function ResumenPage({
   const availableMonths = Array.from(monthSet).sort().reverse();
 
   const ab = accountBalRes.data;
-  const isClosed = !!(ab as any)?.closed;
   return (
     <ResumenClient
       month={month}
@@ -112,7 +132,7 @@ export default async function ResumenPage({
       lastDateByUnit={lastDateByUnit}
       totalCashIn={totalCashIn}
       totalTransferIn={totalTransferIn}
-      payments={payments}
+      payments={detailPayments}
       expenses={(expensesRes.data ?? []).map((e: any) => ({ ...e, amount: Number(e.amount) }))}
       accountBalance={ab ? {
         cash_opening: Number(ab.cash_opening),
