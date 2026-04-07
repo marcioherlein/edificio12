@@ -57,7 +57,7 @@ export default function PaymentsClient({
     router.push(`/payments?month=${m}`);
   }
 
-  const formUnits = units.map(({ id, name }) => ({ id, name }));
+  const formUnits = units.map(({ id, name, owner_name }) => ({ id, name, owner_name }));
 
   // Payments for this month grouped by unit for row expansion
   const paymentsByUnit: Record<string, Payment[]> = {};

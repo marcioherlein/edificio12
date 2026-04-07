@@ -21,20 +21,21 @@ function formatDateDisplay(dateStr: string): string {
   });
 }
 
-interface Unit { id: string; name: string; }
+interface Unit { id: string; name: string; owner_name: string; }
 
 interface Props {
   units: Unit[];
   onSuccess: (paymentId: string, isCash: boolean) => void;
   onCancel: () => void;
+  defaultUnitId?: string;
 }
 
-export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
+export default function PaymentForm({ units, onSuccess, onCancel, defaultUnitId }: Props) {
   const supabase = createClient();
   const cur = currentMonth();
   const allMonths = buildMonthOptions();
 
-  const [unitId, setUnitId] = useState("");
+  const [unitId, setUnitId] = useState(defaultUnitId ?? "");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"efectivo" | "transferencia">("efectivo");
   const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set([cur]));
@@ -213,21 +214,23 @@ export default function PaymentForm({ units, onSuccess, onCancel }: Props) {
   // ── Form ────────────────────────────────────────────────────
   return (
     <form onSubmit={handleReview} className="space-y-4">
-      {/* Unit */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
-        <select
-          required
-          value={unitId}
-          onChange={(e) => setUnitId(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Seleccioná una unidad</option>
-          {units.map((u) => (
-            <option key={u.id} value={u.id}>{u.name}</option>
-          ))}
-        </select>
-      </div>
+      {/* Unit — hidden when pre-selected from a unit row */}
+      {!defaultUnitId && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Unidad *</label>
+          <select
+            required
+            value={unitId}
+            onChange={(e) => setUnitId(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Seleccioná una unidad</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>{u.name} — {u.owner_name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Amount */}
       <div>

@@ -8,7 +8,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Unit { id: string; name: string; owner_name: string; }
-interface Payment { id: string; unit_id: string; amount: number; method: string; month: string; date: string; notes: string | null; }
+interface Payment { id: string; unit_id: string; amount: number; method: string; month: string; date: string; notes: string | null; receipt_url?: string | null; }
 interface Expense { id: string; description: string; amount: number; method: string; date: string; category: string; }
 interface AccountBalance { cash_opening: number; bank_opening: number; bank_interest: number; }
 
@@ -56,6 +56,7 @@ export default function ResumenClient({
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
+  const [payingUnit, setPayingUnit] = useState<Unit | null>(null);
 
   const canEdit = isAdmin && isMonthOpen(month);
 
@@ -65,7 +66,7 @@ export default function ResumenClient({
     paymentsByUnit[p.unit_id].push(p);
   }
 
-  function onPaymentSuccess() { setPaymentOpen(false); router.refresh(); }
+  function onPaymentSuccess() { setPaymentOpen(false); setPayingUnit(null); router.refresh(); }
   function onExpenseSuccess() { setExpenseOpen(false); router.refresh(); }
   function onEditSuccess() { setEditPayment(null); router.refresh(); }
 
@@ -127,20 +128,10 @@ export default function ResumenClient({
         ════════════════════════════════════════════════ */}
         <section>
           {/* Section label */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <span className="w-1 h-6 bg-blue-500 rounded-full" />
-              <h2 className="text-lg font-bold text-white">Ingresos</h2>
-              <span className="text-blue-400 text-sm font-medium">{formatMonthLabel(month)}</span>
-            </div>
-            {canEdit && (
-              <button
-                onClick={() => setPaymentOpen(true)}
-                className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-lg shadow-blue-900/30"
-              >
-                <span className="text-base leading-none">+</span> Registrar pago
-              </button>
-            )}
+          <div className="flex items-center gap-3 mb-3">
+            <span className="w-1 h-6 bg-blue-500 rounded-full" />
+            <h2 className="text-lg font-bold text-white">Ingresos</h2>
+            <span className="text-blue-400 text-sm font-medium">{formatMonthLabel(month)}</span>
           </div>
 
           <div className="rounded-2xl overflow-hidden border border-gray-800 shadow-2xl">
@@ -229,13 +220,23 @@ export default function ResumenClient({
                         <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
                           Pagos registrados — {unit.name} · {unit.owner_name}
                         </p>
-                        <a
-                          href={`/unidad/${unit.id}`}
-                          className="text-xs font-semibold text-blue-400 hover:text-blue-200 bg-blue-900/40 hover:bg-blue-800/60 px-3 py-1.5 rounded-lg transition-colors"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Ver historial completo →
-                        </a>
+                        <div className="flex items-center gap-2">
+                          {canEdit && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPayingUnit(unit); setPaymentOpen(true); }}
+                              className="text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                              + Agregar pago
+                            </button>
+                          )}
+                          <a
+                            href={`/unidad/${unit.id}`}
+                            className="text-xs font-semibold text-blue-400 hover:text-blue-200 bg-blue-900/40 hover:bg-blue-800/60 px-3 py-1.5 rounded-lg transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Ver historial completo →
+                          </a>
+                        </div>
                       </div>
                       {unitPays.length === 0 ? (
                         <p className="text-sm text-gray-500 py-2">Sin pagos registrados este mes.</p>
@@ -260,14 +261,25 @@ export default function ResumenClient({
                                 </div>
                               </div>
                             </div>
-                            {canEdit && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setEditPayment(p); }}
-                                className="text-sm font-medium text-blue-400 hover:text-white bg-blue-900/40 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors"
-                              >
-                                Editar
-                              </button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {/* Receipt links — public, visible to all */}
+                              {p.method === "efectivo" && (
+                                <a href={`/api/receipts/${p.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                                  className="text-amber-400 hover:text-amber-300 text-lg" title="Ver comprobante">🧾</a>
+                              )}
+                              {p.method !== "efectivo" && p.receipt_url && (
+                                <a href={p.receipt_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
+                                  className="text-blue-400 hover:text-blue-300 text-lg" title="Ver comprobante">📎</a>
+                              )}
+                              {canEdit && (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setEditPayment(p); }}
+                                  className="text-sm font-medium text-blue-400 hover:text-white bg-blue-900/40 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors"
+                                >
+                                  Editar
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ))
                       )}
@@ -452,11 +464,12 @@ export default function ResumenClient({
       {/* ── Modals ─────────────────────────────────────────── */}
       {canEdit && (
         <>
-          <Modal open={paymentOpen} onClose={() => setPaymentOpen(false)} title="Registrar pago">
+          <Modal open={paymentOpen} onClose={() => { setPaymentOpen(false); setPayingUnit(null); }} title={payingUnit ? `Registrar pago — ${payingUnit.name} · ${payingUnit.owner_name}` : "Registrar pago"}>
             <PaymentForm
-              units={units.map(u => ({ id: u.id, name: u.name }))}
+              units={units.map(u => ({ id: u.id, name: u.name, owner_name: u.owner_name }))}
+              defaultUnitId={payingUnit?.id}
               onSuccess={onPaymentSuccess}
-              onCancel={() => setPaymentOpen(false)}
+              onCancel={() => { setPaymentOpen(false); setPayingUnit(null); }}
             />
           </Modal>
           <Modal open={expenseOpen} onClose={() => setExpenseOpen(false)} title="Registrar gasto">
