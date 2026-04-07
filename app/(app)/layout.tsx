@@ -43,9 +43,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {user ? (
             <>
               {isAdmin && (
-                <span className="text-[11px] font-semibold text-white/70 border border-white/30 px-2 py-0.5 rounded uppercase tracking-wide hidden sm:inline">
+                <Link
+                  href="/admin"
+                  className="text-[11px] font-semibold text-white/70 border border-white/30 hover:bg-white/10 px-2 py-0.5 rounded uppercase tracking-wide hidden sm:inline transition-colors"
+                >
                   Admin
-                </span>
+                </Link>
               )}
               <span className="text-xs text-white/80 hidden sm:block">{name}</span>
               <LogoutButton />
