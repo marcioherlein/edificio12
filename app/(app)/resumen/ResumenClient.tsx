@@ -1,6 +1,6 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { formatCurrency, formatDate, formatMonthLabel } from "@/lib/utils";
+import { formatCurrency, formatDate, formatMonthLabel, currentMonth as getCurrentMonth } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
 import PaymentForm from "@/components/admin/PaymentForm";
 import ExpenseForm from "@/components/admin/ExpenseForm";
@@ -21,6 +21,8 @@ interface Props {
   cashByUnit: Record<string, number>;
   transferByUnit: Record<string, number>;
   lastDateByUnit: Record<string, string>;
+  totalCashIn: number;
+  totalTransferIn: number;
   payments: Payment[];
   expenses: Expense[];
   accountBalance: AccountBalance | null;
@@ -49,6 +51,7 @@ function isMonthOpen(month: string): boolean {
 export default function ResumenClient({
   month, availableMonths, units, feeAmount,
   openingByUnit, cashByUnit, transferByUnit, lastDateByUnit,
+  totalCashIn, totalTransferIn,
   payments, expenses, accountBalance, isAdmin, categories,
 }: Props) {
   const router = useRouter();
@@ -71,8 +74,10 @@ export default function ResumenClient({
   function onEditSuccess() { setEditPayment(null); router.refresh(); }
 
   // ── Computed values ──────────────────────────────────────
-  const cashIn           = Object.values(cashByUnit).reduce((a, b) => a + b, 0);
-  const transferIn       = Object.values(transferByUnit).reduce((a, b) => a + b, 0);
+  // cashByUnit/transferByUnit are month-attributed (unit ledger)
+  // totalCashIn/totalTransferIn are date-received (cash balance accounting)
+  const cashIn           = totalCashIn;
+  const transferIn       = totalTransferIn;
   const bankInterest     = accountBalance?.bank_interest ?? 0;
   const cashOpening      = accountBalance?.cash_opening ?? 0;
   const bankOpening      = accountBalance?.bank_opening ?? 0;
@@ -103,19 +108,28 @@ export default function ResumenClient({
 
         {/* ── Month selector ─────────────────────────────── */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-          {availableMonths.map(m => (
-            <button
-              key={m}
-              onClick={() => router.push(`/resumen?month=${m}`)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
-                m === month
-                  ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
-                  : "bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white"
-              }`}
-            >
-              {formatMonthLabel(m)}
-            </button>
-          ))}
+          {availableMonths.map(m => {
+            const isCurrent = m === getCurrentMonth();
+            const isSelected = m === month;
+            return (
+              <button
+                key={m}
+                onClick={() => router.push(`/resumen?month=${m}`)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
+                  isSelected
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-900/40"
+                    : "bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white"
+                }`}
+              >
+                {formatMonthLabel(m)}
+                {isCurrent && (
+                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wide bg-green-500 text-white px-1.5 py-0.5 rounded-full">
+                    actual
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* Closed month notice for admin */}

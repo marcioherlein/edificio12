@@ -52,15 +52,20 @@ export async function POST(request: Request) {
   const rangeEnd   = `${targetMonth}-01`; // exclusive upper bound
 
   // ── Fetch everything we need in parallel ─────────────────────────────────────
-  const [accBalRes, paymentsRes, expensesRes, unitBalancesRes, feeRes, unitsRes] =
+  const [accBalRes, paymentsByDateRes, paymentsByMonthRes, expensesRes, unitBalancesRes, feeRes, unitsRes] =
     await Promise.all([
       svc.from("account_balances")
         .select("cash_opening, bank_opening, bank_interest")
         .eq("month", sourceMonth).single(),
+      // Payments RECEIVED in sourceMonth (by date) — for cash/bank account closing
       svc.from("payments")
         .select("unit_id, amount, method")
         .gte("date", rangeStart)
         .lt("date", rangeEnd),
+      // Payments ATTRIBUTED to sourceMonth (by month field) — for per-unit saldo
+      svc.from("payments")
+        .select("unit_id, amount")
+        .eq("month", sourceMonth),
       svc.from("expenses")
         .select("amount, method")
         .gte("date", rangeStart)
@@ -79,9 +84,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── Compute account closing ───────────────────────────────────────────────────
+  // ── Compute account closing (date-based — cash flow accounting) ──────────────
   const src = accBalRes.data;
-  const payments = paymentsRes.data ?? [];
+  const payments = paymentsByDateRes.data ?? [];
   const expenses  = expensesRes.data ?? [];
 
   const cashIn   = payments.filter(p => p.method === "efectivo").reduce((s, p) => s + Number(p.amount), 0);
@@ -118,7 +123,7 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── Compute per-unit saldo for sourceMonth → openings for targetMonth ─────────
+  // ── Compute per-unit saldo for sourceMonth (month-attributed payments) ────────
   const fee = Number(feeRes.data?.amount ?? 0);
   const openingByUnit: Record<string, number> = {};
   for (const b of unitBalancesRes.data ?? []) {
@@ -126,7 +131,7 @@ export async function POST(request: Request) {
   }
 
   const paidByUnit: Record<string, number> = {};
-  for (const p of payments) {
+  for (const p of paymentsByMonthRes.data ?? []) {
     paidByUnit[p.unit_id] = (paidByUnit[p.unit_id] ?? 0) + Number(p.amount);
   }
 

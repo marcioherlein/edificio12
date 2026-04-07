@@ -14,7 +14,6 @@ export default async function ResumenPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  // Auth is optional — admin controls shown only if logged in as admin
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -29,7 +28,9 @@ export default async function ResumenPage({
   const params = await searchParams;
   const month = params.month ?? currentMonth();
 
-  const [unitsRes, feeRes, accountBalRes, unitBalancesRes, paymentsRes, expensesRes, monthsRes, categoriesRes] =
+  const [unitsRes, feeRes, accountBalRes, unitBalancesRes,
+         paymentsByDateRes, paymentsByMonthRes,
+         expensesRes, monthsRes, categoriesRes] =
     await Promise.all([
       svc.from("units").select("id, name, owner_name").order("name"),
       svc.from("monthly_fees").select("amount").eq("month", month).single(),
@@ -37,11 +38,13 @@ export default async function ResumenPage({
         .select("cash_opening, bank_opening, bank_interest")
         .eq("month", month).single(),
       svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
-      // Payments received during this calendar month (by date, not by attributed month)
-      // This ensures debt payments registered in the current month reduce the current balance
-      svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url")
+      // Payments RECEIVED this calendar month (by date) — for cash balance accounting
+      svc.from("payments").select("unit_id, amount, method")
         .gte("date", `${month}-01`)
-        .lt("date", nextMonthStr(month))
+        .lt("date", nextMonthStr(month)),
+      // Payments ATTRIBUTED to this month (by month field) — for per-unit table & history
+      svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url")
+        .eq("month", month)
         .order("date"),
       svc.from("expenses")
         .select("id, description, amount, method, date, category")
@@ -57,10 +60,11 @@ export default async function ResumenPage({
     openingByUnit[b.unit_id] = Number(b.opening_balance);
   }
 
+  // Per-unit breakdown uses month-attributed payments (correct ledger logic)
   const cashByUnit: Record<string, number> = {};
   const transferByUnit: Record<string, number> = {};
   const lastDateByUnit: Record<string, string> = {};
-  for (const p of paymentsRes.data ?? []) {
+  for (const p of paymentsByMonthRes.data ?? []) {
     if (p.method === "efectivo") {
       cashByUnit[p.unit_id] = (cashByUnit[p.unit_id] ?? 0) + Number(p.amount);
     } else {
@@ -69,7 +73,15 @@ export default async function ResumenPage({
     lastDateByUnit[p.unit_id] = p.date;
   }
 
-  const payments = (paymentsRes.data ?? []).map((p: any) => ({
+  // Cash balance totals use date-received payments (correct accounting)
+  const totalCashIn = (paymentsByDateRes.data ?? [])
+    .filter(p => p.method === "efectivo")
+    .reduce((s, p) => s + Number(p.amount), 0);
+  const totalTransferIn = (paymentsByDateRes.data ?? [])
+    .filter(p => p.method === "transferencia")
+    .reduce((s, p) => s + Number(p.amount), 0);
+
+  const payments = (paymentsByMonthRes.data ?? []).map((p: any) => ({
     id: p.id,
     unit_id: p.unit_id,
     amount: Number(p.amount),
@@ -80,9 +92,10 @@ export default async function ResumenPage({
     receipt_url: p.receipt_url as string | null,
   }));
 
+  // Future months only visible to admin
   const monthSet = new Set((monthsRes.data ?? []).map((r: any) => r.month as string));
   monthSet.add(currentMonth());
-  monthSet.add(nextMonth());
+  if (isAdmin) monthSet.add(nextMonth());
   const availableMonths = Array.from(monthSet).sort().reverse();
 
   const ab = accountBalRes.data;
@@ -96,6 +109,8 @@ export default async function ResumenPage({
       cashByUnit={cashByUnit}
       transferByUnit={transferByUnit}
       lastDateByUnit={lastDateByUnit}
+      totalCashIn={totalCashIn}
+      totalTransferIn={totalTransferIn}
       payments={payments}
       expenses={(expensesRes.data ?? []).map((e: any) => ({ ...e, amount: Number(e.amount) }))}
       accountBalance={ab ? {
