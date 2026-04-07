@@ -9,6 +9,15 @@ function nextMonthStr(month: string) {
   return `${nextY}-${String(nextM).padStart(2, "0")}-01`;
 }
 
+function unitSortKey(name: string): string {
+  if (name.startsWith("PB")) return `0_${name}`;
+  return `1_${name}`;
+}
+
+function sortUnits<T extends { name: string }>(units: T[]): T[] {
+  return [...units].sort((a, b) => unitSortKey(a.name).localeCompare(unitSortKey(b.name)));
+}
+
 /** A month is "open" if it's the current month, or the previous month within the 5-day grace period. */
 function isMonthOpen(month: string): boolean {
   const now = new Date();
@@ -46,7 +55,7 @@ export default async function ResumenPage({
          paymentsByDateRes, paymentsByMonthRes,
          expensesRes, monthsRes, categoriesRes] =
     await Promise.all([
-      svc.from("units").select("id, name, owner_name").order("name"),
+      svc.from("units").select("id, name, owner_name"),
       svc.from("monthly_fees").select("amount").eq("month", month).single(),
       svc.from("account_balances")
         .select("cash_opening, bank_opening, bank_interest, closed")
@@ -140,7 +149,7 @@ export default async function ResumenPage({
     <ResumenClient
       month={month}
       availableMonths={availableMonths}
-      units={unitsRes.data ?? []}
+      units={sortUnits(unitsRes.data ?? [])}
       feeAmount={Number(feeRes.data?.amount ?? 0)}
       openingByUnit={openingByUnit}
       cashByUnit={cashByUnit}
