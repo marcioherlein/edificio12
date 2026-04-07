@@ -67,10 +67,14 @@ async function AdminDashboard({ month }: { month: string }) {
     const transferOut = allExpenses
       .filter(e => e.date.startsWith(m) && (e.method ?? "transferencia") !== "efectivo")
       .reduce((s, e) => s + Number(e.amount), 0);
+    const ingresos = cashIn + transferIn;
+    const egresos  = cashOut + transferOut;
     return {
       month: m,
       caja: Number(ab.cash_opening) + cashIn - cashOut,
       uala: Number(ab.bank_opening) + transferIn + Number((ab as any).bank_interest ?? 0) - transferOut,
+      ingresos,
+      egresos,
     };
   });
 
