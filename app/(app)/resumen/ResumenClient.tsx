@@ -61,11 +61,7 @@ export default function ResumenClient({
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
   const [payingUnit, setPayingUnit] = useState<Unit | null>(null);
-  const [bankInterestState, setBankInterestState] = useState(accountBalance?.bank_interest ?? 0);
-
   const canEdit = isAdmin && isMonthOpen(month) && !isClosed;
-  // Bank interest can be corrected by admin even on closed months (financial adjustment, not a new entry)
-  const canEditInterest = isAdmin;
 
   const paymentsByUnit: Record<string, Payment[]> = {};
   for (const p of payments) {
@@ -80,7 +76,7 @@ export default function ResumenClient({
   // ── Computed values ──────────────────────────────────────
   const cashIn           = totalCashIn;
   const transferIn       = totalTransferIn;
-  const bankInterest     = bankInterestState;
+  const bankInterest     = accountBalance?.bank_interest ?? 0;
   const cashOpening      = accountBalance?.cash_opening ?? 0;
   const bankOpening      = accountBalance?.bank_opening ?? 0;
   const cashExpenses     = expenses.filter(e => e.method === "efectivo").reduce((a, e) => a + e.amount, 0);
@@ -378,15 +374,6 @@ export default function ResumenClient({
               );
             })}
 
-            {/* Interests row */}
-            <InteresesRow
-              bankInterest={bankInterest}
-              canEdit={canEditInterest}
-              month={month}
-              onSaved={(v) => { setBankInterestState(v); router.refresh(); }}
-              ING_COLS={ING_COLS}
-            />
-
             {/* Totals row */}
             <div className={`sm:grid ${ING_COLS} gap-x-3 px-5 py-4 border-t-2 items-center`}
               style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
@@ -395,7 +382,7 @@ export default function ResumenClient({
                 <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>Total</span>
                 <div className="text-right">
                   <div className="text-sm font-bold" style={{ color: "var(--fiori-success)" }}>💵 {formatCurrency(cashIn)}</div>
-                  <div className="text-sm font-bold" style={{ color: "var(--fiori-blue)" }}>🏦 {formatCurrency(transferIn + bankInterest)}</div>
+                  <div className="text-sm font-bold" style={{ color: "var(--fiori-blue)" }}>🏦 {formatCurrency(transferIn)}</div>
                 </div>
               </div>
               {/* Desktop */}
@@ -413,7 +400,7 @@ export default function ResumenClient({
               </span>
               <span className="hidden sm:block text-sm text-right font-bold rounded px-1"
                 style={{ color: "var(--fiori-blue)", background: "#e8f2ff" }}>
-                {formatCurrency(transferIn + bankInterest)}
+                {formatCurrency(transferIn)}
               </span>
               <span className="hidden sm:block" />
               <span className="hidden sm:block text-sm text-right font-bold" style={{ color: "var(--fiori-warning)" }}>
@@ -767,205 +754,6 @@ function EditPaymentForm({
         </div>
       </div>
     </form>
-  );
-}
-
-// ── Intereses Row ─────────────────────────────────────────────────────────────
-
-function InteresesRow({
-  bankInterest, canEdit, month, onSaved, ING_COLS,
-}: {
-  bankInterest: number;
-  canEdit: boolean;
-  month: string;
-  onSaved: (value: number) => void;
-  ING_COLS: string;
-}) {
-  const supabase = createClient();
-  const [editing, setEditing] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [inputValue, setInputValue] = useState(String(bankInterest));
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  function handleEdit(e: React.MouseEvent) {
-    e.stopPropagation();
-    setInputValue(String(bankInterest));
-    setEditing(true);
-    setConfirming(false);
-    setError("");
-  }
-
-  function handleReview(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    if (!inputValue || isNaN(parseFloat(inputValue))) { setError("Ingresá un monto válido."); return; }
-    setConfirming(true);
-  }
-
-  async function handleConfirm() {
-    setLoading(true);
-    setError("");
-    const amount = parseFloat(inputValue);
-    const { error: err } = await supabase
-      .from("account_balances")
-      .update({ bank_interest: amount })
-      .eq("month", month);
-    if (err) {
-      setError("Error al guardar: " + err.message);
-      setLoading(false);
-      return;
-    }
-    setEditing(false);
-    setConfirming(false);
-    onSaved(amount);
-    setLoading(false);
-  }
-
-  const rowStyle = { borderColor: "var(--fiori-border)", background: "#f5f6f7" };
-  const inputCls = "px-2 py-1.5 rounded border text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]";
-  const inputInlineStyle = { borderColor: "var(--fiori-border)", color: "var(--fiori-text)" };
-
-  // Confirmation screen
-  if (editing && confirming) {
-    return (
-      <div className="border-t" style={rowStyle}>
-        {/* Mobile */}
-        <div className="sm:hidden px-4 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--fiori-blue)" }}>Confirmar intereses Uala</p>
-          <div className="flex items-center justify-between">
-            <span className="text-sm" style={{ color: "var(--fiori-text-muted)" }}>Nuevo valor</span>
-            <span className="text-base font-bold" style={{ color: "var(--fiori-blue)" }}>{formatCurrency(parseFloat(inputValue))}</span>
-          </div>
-          {error && <p className="text-xs" style={{ color: "var(--fiori-error)" }}>{error}</p>}
-          <div className="flex gap-2">
-            <button onClick={() => setConfirming(false)}
-              className="flex-1 px-3 py-2 text-sm border rounded"
-              style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
-              ← Corregir
-            </button>
-            <button onClick={handleConfirm} disabled={loading}
-              className="flex-1 px-3 py-2 text-sm font-bold text-white rounded disabled:opacity-50"
-              style={{ background: "var(--fiori-blue)" }}>
-              {loading ? "Guardando…" : "Confirmar"}
-            </button>
-          </div>
-        </div>
-        {/* Desktop */}
-        <div className={`hidden sm:grid ${ING_COLS} gap-x-3 px-5 py-3 items-center`}>
-          <span className="text-sm font-semibold col-span-4" style={{ color: "var(--fiori-blue)" }}>
-            Intereses Uala — confirmar {formatCurrency(parseFloat(inputValue))}
-          </span>
-          <span />
-          <span className="text-sm text-right font-bold" style={{ color: "var(--fiori-blue)" }}>{formatCurrency(parseFloat(inputValue))}</span>
-          <div className="flex gap-2 justify-end col-span-2">
-            <button onClick={() => setConfirming(false)}
-              className="text-xs px-2 py-1 border rounded"
-              style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
-              ← Corregir
-            </button>
-            <button onClick={handleConfirm} disabled={loading}
-              className="text-xs px-3 py-1 font-bold text-white rounded disabled:opacity-50"
-              style={{ background: "var(--fiori-blue)" }}>
-              {loading ? "Guardando…" : "Confirmar"}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Editing screen (input)
-  if (editing) {
-    return (
-      <div className="border-t" style={rowStyle}>
-        {/* Mobile */}
-        <form onSubmit={handleReview} className="sm:hidden px-4 py-4 space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--fiori-blue)" }}>
-            Intereses Uala — {formatMonthLabel(month)}
-          </p>
-          <input
-            type="number" min="0" step="0.01" autoFocus
-            value={inputValue} onChange={e => setInputValue(e.target.value)}
-            placeholder="0.00"
-            className={`w-full ${inputCls}`} style={inputInlineStyle}
-          />
-          {error && <p className="text-xs" style={{ color: "var(--fiori-error)" }}>{error}</p>}
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setEditing(false)}
-              className="flex-1 px-3 py-2 text-sm border rounded"
-              style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
-              Cancelar
-            </button>
-            <button type="submit"
-              className="flex-1 px-3 py-2 text-sm font-bold text-white rounded"
-              style={{ background: "var(--fiori-blue)" }}>
-              Revisar →
-            </button>
-          </div>
-        </form>
-        {/* Desktop */}
-        <form onSubmit={handleReview} className={`hidden sm:grid ${ING_COLS} gap-x-3 px-5 py-2.5 items-center`}>
-          <span className="text-sm font-semibold col-span-4" style={{ color: "var(--fiori-blue)" }}>Intereses Uala</span>
-          <span />
-          <input
-            type="number" min="0" step="0.01" autoFocus
-            value={inputValue} onChange={e => setInputValue(e.target.value)}
-            placeholder="0.00"
-            className={`${inputCls} text-right w-full`} style={inputInlineStyle}
-          />
-          <div className="flex gap-2 justify-end col-span-2">
-            <button type="button" onClick={() => setEditing(false)}
-              className="text-xs px-2 py-1 border rounded"
-              style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
-              Cancelar
-            </button>
-            <button type="submit"
-              className="text-xs px-3 py-1 font-bold text-white rounded"
-              style={{ background: "var(--fiori-blue)" }}>
-              Revisar →
-            </button>
-          </div>
-        </form>
-      </div>
-    );
-  }
-
-  // Display row
-  return (
-    <div className="border-t" style={rowStyle}>
-      {/* Mobile */}
-      <div className="sm:hidden flex items-center justify-between px-4 py-3">
-        <span className="text-sm font-semibold" style={{ color: "var(--fiori-blue)" }}>Intereses Uala</span>
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold" style={{ color: bankInterest > 0 ? "var(--fiori-blue)" : "var(--fiori-border)" }}>
-            {bankInterest > 0 ? formatCurrency(bankInterest) : "—"}
-          </span>
-          {canEdit && (
-            <button onClick={handleEdit}
-              className="text-xs font-semibold px-2 py-1 rounded border transition-colors"
-              style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
-              {bankInterest > 0 ? "Editar" : "+ Agregar"}
-            </button>
-          )}
-        </div>
-      </div>
-      {/* Desktop */}
-      <div className={`hidden sm:grid ${ING_COLS} gap-x-3 px-5 py-3 items-center`}>
-        <span className="text-sm font-semibold col-span-5" style={{ color: "var(--fiori-blue)" }}>Intereses Uala</span>
-        <span className="text-sm text-right font-semibold" style={{ color: bankInterest > 0 ? "var(--fiori-blue)" : "var(--fiori-border)" }}>
-          {bankInterest > 0 ? formatCurrency(bankInterest) : "—"}
-        </span>
-        <span />
-        {canEdit ? (
-          <button onClick={handleEdit}
-            className="text-xs font-semibold px-3 py-1.5 rounded border transition-colors text-right"
-            style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
-            {bankInterest > 0 ? "Editar" : "+ Agregar"}
-          </button>
-        ) : <span />}
-      </div>
-    </div>
   );
 }
 
