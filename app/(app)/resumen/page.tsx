@@ -84,16 +84,13 @@ export default async function ResumenPage({
     openingByUnit[b.unit_id] = Number(b.opening_balance);
   }
 
-  // isClosed: true if explicitly closed in DB, OR if the month is 2+ months in the past
-  // (fallback so display is correct even before the schema migration runs)
   const isClosed = !!(accountBalRes.data as any)?.closed || !isMonthOpen(month);
 
-  // For closed months: per-unit breakdown uses DATE-bounded payments (frozen snapshot).
-  // Payments entered later but attributed to this month must NOT bleed into a closed view.
-  // For open months: use month-attributed payments (correct ledger logic for advance/retroactive payments).
-  const ledgerPayments = isClosed
-    ? (paymentsByDateRes.data ?? [])
-    : (paymentsByMonthRes.data ?? []);
+  // Always use DATE-bounded payments for per-unit display.
+  // A payment belongs to the month it was physically received, regardless of which
+  // period it covers (month field). The opening_balance handles accumulated debt.
+  // This means: Walter pays 3×$35k in April → all 3 show in April → saldo $0.
+  const ledgerPayments = paymentsByDateRes.data ?? [];
 
   const cashByUnit: Record<string, number> = {};
   const transferByUnit: Record<string, number> = {};
@@ -115,28 +112,17 @@ export default async function ResumenPage({
     .filter(p => p.method === "transferencia")
     .reduce((s, p) => s + Number(p.amount), 0);
 
-  // Expanded payment detail: for closed months use date-bounded payments; for open months use month-attributed
-  const detailPayments = isClosed
-    ? (paymentsByDateRes.data ?? []).map((p: any) => ({
-        id: p.id ?? "",
-        unit_id: p.unit_id,
-        amount: Number(p.amount),
-        method: p.method as string,
-        month: p.month ?? month,
-        date: p.date as string,
-        notes: p.notes as string | null,
-        receipt_url: p.receipt_url as string | null,
-      }))
-    : (paymentsByMonthRes.data ?? []).map((p: any) => ({
-        id: p.id,
-        unit_id: p.unit_id,
-        amount: Number(p.amount),
-        method: p.method as string,
-        month: p.month as string,
-        date: p.date as string,
-        notes: p.notes as string | null,
-        receipt_url: p.receipt_url as string | null,
-      }));
+  // Expanded detail also date-bounded — consistent with ledger display
+  const detailPayments = (paymentsByDateRes.data ?? []).map((p: any) => ({
+    id: p.id ?? "",
+    unit_id: p.unit_id,
+    amount: Number(p.amount),
+    method: p.method as string,
+    month: p.month ?? month,
+    date: p.date as string,
+    notes: p.notes as string | null,
+    receipt_url: p.receipt_url as string | null,
+  }));
 
   // Future months only visible to admin
   const monthSet = new Set((monthsRes.data ?? []).map((r: any) => r.month as string));
