@@ -62,6 +62,7 @@ export default function ResumenClient({
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
   const [payingUnit, setPayingUnit] = useState<Unit | null>(null);
   const canEdit = isAdmin && isMonthOpen(month) && !isClosed;
+  const [bankInterestState, setBankInterestState] = useState(accountBalance?.bank_interest ?? 0);
 
   const paymentsByUnit: Record<string, Payment[]> = {};
   for (const p of payments) {
@@ -76,7 +77,7 @@ export default function ResumenClient({
   // ── Computed values ──────────────────────────────────────
   const cashIn           = totalCashIn;
   const transferIn       = totalTransferIn;
-  const bankInterest     = accountBalance?.bank_interest ?? 0;
+  const bankInterest     = bankInterestState;
   const cashOpening      = accountBalance?.cash_opening ?? 0;
   const bankOpening      = accountBalance?.bank_opening ?? 0;
   const cashExpenses     = expenses.filter(e => e.method === "efectivo").reduce((a, e) => a + e.amount, 0);
@@ -527,9 +528,12 @@ export default function ResumenClient({
 
             <BalanceRow label="Saldo apertura" cash={cashOpening} bank={bankOpening} />
             <BalanceRow label="+ Ingresos expensas" cash={cashIn} bank={transferIn} cashVariant="success" bankVariant="success" totalVariant="success" />
-            {bankInterest > 0 && (
-              <BalanceRow label="+ Intereses Uala" cash={null} bank={bankInterest} bankVariant="blue" totalVariant="blue" />
-            )}
+            <InteresesBalanceRow
+              bankInterest={bankInterest}
+              canEdit={canEdit}
+              month={month}
+              onSaved={(v) => { setBankInterestState(v); router.refresh(); }}
+            />
             <BalanceRow label="− Egresos" cash={cashExpenses} bank={transferExpenses} cashVariant="error" bankVariant="error" totalVariant="error" />
 
             {/* Closing row */}
@@ -611,6 +615,97 @@ function BalanceRow({
       </span>
       <span className="text-sm text-right font-semibold" style={{ color: variantColor[bankVariant] }}>{formatCurrency(bank)}</span>
       <span className="text-sm text-right font-semibold" style={{ color: variantColor[totalVariant] }}>{formatCurrency(total)}</span>
+    </div>
+  );
+}
+
+// ── Intereses Balance Row ────────────────────────────────────────────────────
+
+function InteresesBalanceRow({
+  bankInterest, canEdit, month, onSaved,
+}: {
+  bankInterest: number;
+  canEdit: boolean;
+  month: string;
+  onSaved: (v: number) => void;
+}) {
+  const supabase = createClient();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(bankInterest));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    const amount = parseFloat(value);
+    if (isNaN(amount)) { setError("Monto inválido"); return; }
+    setLoading(true);
+    const { error: err } = await supabase
+      .from("account_balances")
+      .update({ bank_interest: amount })
+      .eq("month", month);
+    if (err) { setError(err.message); setLoading(false); return; }
+    setEditing(false);
+    setLoading(false);
+    onSaved(amount);
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSave}
+        className="grid grid-cols-[3fr_1.5fr_1.5fr_1.5fr] gap-x-3 px-5 py-2.5 border-b items-center"
+        style={{ borderColor: "var(--fiori-border)", background: "#f0f7ff" }}>
+        <span className="text-sm font-medium" style={{ color: "var(--fiori-blue)" }}>+ Intereses Uala</span>
+        <span />
+        <input
+          type="number" min="0" step="0.01" autoFocus
+          value={value} onChange={e => setValue(e.target.value)}
+          className="text-sm text-right border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0070f2] w-full"
+          style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }}
+        />
+        <div className="flex gap-1.5 justify-end">
+          <button type="button" onClick={() => { setEditing(false); setError(""); }}
+            className="text-xs px-2 py-1 border rounded"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
+            ✕
+          </button>
+          <button type="submit" disabled={loading}
+            className="text-xs px-2 py-1 text-white rounded disabled:opacity-50"
+            style={{ background: "var(--fiori-blue)" }}>
+            {loading ? "…" : "✓"}
+          </button>
+        </div>
+        {error && <span className="col-span-4 text-xs" style={{ color: "var(--fiori-error)" }}>{error}</span>}
+      </form>
+    );
+  }
+
+  if (bankInterest <= 0 && !canEdit) return null;
+
+  return (
+    <div className="grid grid-cols-[3fr_1.5fr_1.5fr_1.5fr] gap-x-3 px-5 py-3.5 border-b items-center"
+      style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium" style={{ color: bankInterest > 0 ? "var(--fiori-blue)" : "var(--fiori-text-muted)" }}>
+          + Intereses Uala
+        </span>
+        {canEdit && (
+          <button onClick={() => { setValue(String(bankInterest)); setEditing(true); }}
+            className="text-xs px-2 py-0.5 rounded border transition-colors"
+            style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
+            {bankInterest > 0 ? "Editar" : "+ Agregar"}
+          </button>
+        )}
+      </div>
+      <span style={{ color: "var(--fiori-border)" }} className="text-sm text-right">—</span>
+      <span className="text-sm text-right font-semibold"
+        style={{ color: bankInterest > 0 ? "var(--fiori-blue)" : "var(--fiori-border)" }}>
+        {bankInterest > 0 ? formatCurrency(bankInterest) : "—"}
+      </span>
+      <span className="text-sm text-right font-semibold"
+        style={{ color: bankInterest > 0 ? "var(--fiori-blue)" : "var(--fiori-border)" }}>
+        {bankInterest > 0 ? formatCurrency(bankInterest) : "—"}
+      </span>
     </div>
   );
 }
