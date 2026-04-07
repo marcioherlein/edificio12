@@ -9,6 +9,20 @@ function nextMonthStr(month: string) {
   return `${nextY}-${String(nextM).padStart(2, "0")}-01`;
 }
 
+/** A month is "open" if it's the current month, or the previous month within the 5-day grace period. */
+function isMonthOpen(month: string): boolean {
+  const now = new Date();
+  const cur = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  if (month === cur) return true;
+  if (now.getDate() <= 5) {
+    const prevY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
+    const prev = `${prevY}-${String(prevM).padStart(2, "0")}`;
+    if (month === prev) return true;
+  }
+  return false;
+}
+
 export default async function ResumenPage({
   searchParams,
 }: {
@@ -61,7 +75,9 @@ export default async function ResumenPage({
     openingByUnit[b.unit_id] = Number(b.opening_balance);
   }
 
-  const isClosed = !!(accountBalRes.data as any)?.closed;
+  // isClosed: true if explicitly closed in DB, OR if the month is 2+ months in the past
+  // (fallback so display is correct even before the schema migration runs)
+  const isClosed = !!(accountBalRes.data as any)?.closed || !isMonthOpen(month);
 
   // For closed months: per-unit breakdown uses DATE-bounded payments (frozen snapshot).
   // Payments entered later but attributed to this month must NOT bleed into a closed view.
