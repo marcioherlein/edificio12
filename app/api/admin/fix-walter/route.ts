@@ -3,11 +3,12 @@ import { createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 // POST /api/admin/fix-walter
-// Fixes Walter (1B) data:
-//   1. Deletes any payments for 1B with April+ dates attributed to closed months (Feb/Mar)
-//   2. Sets 1B April opening_balance = 70,000 (35k feb debt + 35k mar fee, no payments in those months)
-//   3. Inserts Walter's real payment: $105,000 transferencia, date 2026-04-03, month 2026-04
-// Idempotent — checks before inserting.
+// Fixes Walter (1B) April payments:
+//   1. Finds ALL Walter payments dated in April (regardless of which month they're attributed to)
+//   2. Re-attributes any Feb/Mar-attributed ones to month="2026-04"
+//      (opening_balance already carries the accumulated Feb+Mar debt — all April payments must be month=Apr)
+//   3. Sets April opening_balance = 70,000 if not already correct
+// Idempotent.
 export async function POST() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -24,21 +25,25 @@ export async function POST() {
 
   const unitId = unit.id;
 
-  // 1. Delete incorrect payments: dated in April+ but attributed to closed months Feb/Mar
-  const { data: badPayments } = await svc
+  // 1. Find all April-dated payments for Walter
+  const { data: aprilPayments } = await svc
     .from("payments")
     .select("id, amount, method, date, month")
     .eq("unit_id", unitId)
     .gte("date", "2026-04-01")
-    .in("month", ["2026-02", "2026-03"]);
+    .lt("date", "2026-05-01");
 
-  const deletedIds = (badPayments ?? []).map(p => p.id);
-  if (deletedIds.length > 0) {
-    await svc.from("payments").delete().in("id", deletedIds);
+  const all = aprilPayments ?? [];
+
+  // Re-attribute any payments not already on month="2026-04"
+  const wrongMonth = all.filter(p => p.month !== "2026-04");
+  const reattributed: typeof wrongMonth = [];
+  for (const p of wrongMonth) {
+    await svc.from("payments").update({ month: "2026-04" }).eq("id", p.id);
+    reattributed.push(p);
   }
 
-  // 2. Set April opening_balance = 70,000 for Walter
-  //    (35k owed from Feb + 35k March fee, zero payments received in those months)
+  // 2. Ensure April opening_balance = 70,000
   const { data: existingAprBal } = await svc
     .from("unit_balances")
     .select("id, opening_balance")
@@ -48,45 +53,29 @@ export async function POST() {
 
   let aprBalAction = "";
   if (existingAprBal) {
-    await svc.from("unit_balances")
-      .update({ opening_balance: 70000 })
-      .eq("unit_id", unitId).eq("month", "2026-04");
-    aprBalAction = `updated from ${existingAprBal.opening_balance} → 70000`;
+    if (Number(existingAprBal.opening_balance) !== 70000) {
+      await svc.from("unit_balances")
+        .update({ opening_balance: 70000 })
+        .eq("unit_id", unitId).eq("month", "2026-04");
+      aprBalAction = `updated ${existingAprBal.opening_balance} → 70000`;
+    } else {
+      aprBalAction = "already 70000 ✓";
+    }
   } else {
     await svc.from("unit_balances")
       .insert({ unit_id: unitId, month: "2026-04", opening_balance: 70000 });
     aprBalAction = "inserted 70000";
   }
 
-  // 3. Insert Walter's $105,000 April payment (if not already present)
-  const { data: existingPayment } = await svc
-    .from("payments")
-    .select("id, amount")
-    .eq("unit_id", unitId)
-    .eq("month", "2026-04")
-    .eq("amount", 105000)
-    .maybeSingle();
-
-  let paymentAction = "";
-  if (!existingPayment) {
-    await svc.from("payments").insert({
-      unit_id: unitId,
-      amount: 105000,
-      method: "transferencia",
-      date: "2026-04-03",
-      month: "2026-04",
-      notes: "Cubre Feb + Mar + Abr",
-    });
-    paymentAction = "inserted $105,000 transferencia 2026-04-03";
-  } else {
-    paymentAction = "payment already exists, skipped";
-  }
+  const totalPaid = all.reduce((s, p) => s + Number(p.amount), 0);
 
   return NextResponse.json({
     ok: true,
     unit: `${unit.name} — ${unit.owner_name}`,
-    deletedBadPayments: badPayments ?? [],
+    aprilPayments: all,
+    reattributedToApril: reattributed,
+    totalPaid,
+    expectedSaldo: 70000 + 35000 - totalPaid,
     aprBalAction,
-    paymentAction,
   });
 }
