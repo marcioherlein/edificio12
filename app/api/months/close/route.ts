@@ -9,13 +9,6 @@ function nextMonthStr(month: string): string {
   return `${nextY}-${String(nextM).padStart(2, "0")}`;
 }
 
-function prevMonthOf(month: string): string {
-  const [y, m] = month.split("-").map(Number);
-  const pY = m === 1 ? y - 1 : y;
-  const pM = m === 1 ? 12 : m - 1;
-  return `${pY}-${String(pM).padStart(2, "0")}`;
-}
-
 // POST /api/months/close
 // Closes `sourceMonth` and writes opening balances for the following month.
 // Callable by admin session OR by cron (Authorization: Bearer CRON_SECRET).
@@ -154,6 +147,9 @@ export async function POST(request: Request) {
       }))
     );
   }
+
+  // ── Mark sourceMonth as closed ───────────────────────────────────────────────
+  await svc.from("account_balances").update({ closed: true }).eq("month", sourceMonth);
 
   return NextResponse.json({
     ok: true,

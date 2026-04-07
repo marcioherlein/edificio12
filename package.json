@@ -16,6 +16,7 @@
     "resend": "^6.10.0"
   },
   "devDependencies": {
+    "@sap-theming/theming-base-content": "^11.34.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -6,7 +6,6 @@ import {
 import Card from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Link from "next/link";
-import AdminBalanceSetup from "./AdminBalanceSetup";
 import BalanceChart, { MonthBalance } from "./BalanceChart";
 
 export default async function DashboardPage() {
@@ -80,7 +79,6 @@ async function AdminDashboard({ month }: { month: string }) {
   const cashOpening  = Number(currentAb?.cash_opening ?? 0);
   const bankOpening  = Number(currentAb?.bank_opening ?? 0);
   const bankInterest = Number((currentAb as any)?.bank_interest ?? 0);
-  const openingSet   = !!currentAb;
 
   // Filter by date (received this month) — consistent with Resumen page
   const cashIn  = allPayments.filter(p => p.date.startsWith(month) && p.method === "efectivo").reduce((s, p) => s + Number(p.amount), 0);
@@ -129,11 +127,6 @@ async function AdminDashboard({ month }: { month: string }) {
           </Link>
         </div>
       </div>
-
-      {/* Bank interest — always show when opening is set */}
-      {openingSet && (
-        <AdminBalanceSetup month={month} bankInterest={bankInterest} />
-      )}
 
       {/* Two-account balance cards */}
       <div className="grid grid-cols-2 gap-3">

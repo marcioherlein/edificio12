@@ -35,7 +35,7 @@ export default async function ResumenPage({
       svc.from("units").select("id, name, owner_name").order("name"),
       svc.from("monthly_fees").select("amount").eq("month", month).single(),
       svc.from("account_balances")
-        .select("cash_opening, bank_opening, bank_interest")
+        .select("cash_opening, bank_opening, bank_interest, closed")
         .eq("month", month).single(),
       svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
       // Payments RECEIVED this calendar month (by date) — for cash balance accounting
@@ -99,6 +99,7 @@ export default async function ResumenPage({
   const availableMonths = Array.from(monthSet).sort().reverse();
 
   const ab = accountBalRes.data;
+  const isClosed = !!(ab as any)?.closed;
   return (
     <ResumenClient
       month={month}
@@ -119,6 +120,7 @@ export default async function ResumenPage({
         bank_interest: Number((ab as any).bank_interest ?? 0),
       } : null}
       isAdmin={isAdmin}
+      isClosed={isClosed}
       categories={categoriesRes.data ?? []}
     />
   );

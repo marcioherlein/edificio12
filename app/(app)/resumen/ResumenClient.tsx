@@ -27,6 +27,7 @@ interface Props {
   expenses: Expense[];
   accountBalance: AccountBalance | null;
   isAdmin: boolean;
+  isClosed: boolean;
   categories: { id: string; name: string }[];
 }
 
@@ -52,7 +53,7 @@ export default function ResumenClient({
   month, availableMonths, units, feeAmount,
   openingByUnit, cashByUnit, transferByUnit, lastDateByUnit,
   totalCashIn, totalTransferIn,
-  payments, expenses, accountBalance, isAdmin, categories,
+  payments, expenses, accountBalance, isAdmin, isClosed, categories,
 }: Props) {
   const router = useRouter();
   const [paymentOpen, setPaymentOpen] = useState(false);
@@ -60,8 +61,9 @@ export default function ResumenClient({
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
   const [payingUnit, setPayingUnit] = useState<Unit | null>(null);
+  const [bankInterestState, setBankInterestState] = useState(accountBalance?.bank_interest ?? 0);
 
-  const canEdit = isAdmin && isMonthOpen(month);
+  const canEdit = isAdmin && isMonthOpen(month) && !isClosed;
 
   const paymentsByUnit: Record<string, Payment[]> = {};
   for (const p of payments) {
@@ -78,7 +80,7 @@ export default function ResumenClient({
   // totalCashIn/totalTransferIn are date-received (cash balance accounting)
   const cashIn           = totalCashIn;
   const transferIn       = totalTransferIn;
-  const bankInterest     = accountBalance?.bank_interest ?? 0;
+  const bankInterest     = bankInterestState;
   const cashOpening      = accountBalance?.cash_opening ?? 0;
   const bankOpening      = accountBalance?.bank_opening ?? 0;
   const cashExpenses     = expenses.filter(e => e.method === "efectivo").reduce((a, e) => a + e.amount, 0);
@@ -132,9 +134,28 @@ export default function ResumenClient({
           })}
         </div>
 
-        {/* Closed month notice for admin */}
-        {isAdmin && !canEdit && (
-          <ClosedMonthAdmin month={month} />
+        {/* Admin month-close panel / closed notice */}
+        {isAdmin && isClosed && (
+          <div className="bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-3 flex items-center gap-2">
+            <span className="text-gray-400 text-sm">🔒</span>
+            <p className="text-sm text-gray-400">
+              <span className="font-semibold text-gray-300">{formatMonthLabel(month)}</span> está cerrado — solo lectura.
+            </p>
+          </div>
+        )}
+        {isAdmin && canEdit && (
+          <CloseMonthPanel
+            month={month}
+            accountBalance={accountBalance}
+            feeAmount={feeAmount}
+            units={units}
+            openingByUnit={openingByUnit}
+            cashByUnit={cashByUnit}
+            transferByUnit={transferByUnit}
+            bankInterest={bankInterest}
+            cashClosing={cashClosing}
+            bankClosing={bankClosing}
+          />
         )}
 
         {/* ════════════════════════════════════════════════
@@ -149,16 +170,27 @@ export default function ResumenClient({
           </div>
 
           <div className="rounded-2xl overflow-hidden border border-gray-800 shadow-2xl">
-            {/* Column headers */}
-            <div className={`hidden sm:grid ${ING_COLS} gap-x-3 px-5 py-3 bg-blue-900/60 border-b border-blue-800/60`}>
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-200">Depto</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-200">Propietario</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Anterior</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Expensa</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Efectivo</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Transf.</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Fecha pago</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">{closingDateLabel}</span>
+            {/* Column headers — two-row: top spans payment methods, bottom is per-column */}
+            <div className="hidden sm:block bg-blue-900/60 border-b border-blue-800/60">
+              {/* Sub-header: "Medio de pago" spanning cols 5-6 */}
+              <div className={`grid ${ING_COLS} gap-x-3 px-5 pt-2`}>
+                <span className="col-span-4" />
+                <span className="col-span-2 text-center text-[10px] font-bold uppercase tracking-widest text-green-300/80 border-b border-green-700/40 pb-1">
+                  Medio de pago
+                </span>
+                <span className="col-span-2" />
+              </div>
+              {/* Column labels */}
+              <div className={`grid ${ING_COLS} gap-x-3 px-5 py-2`}>
+                <span className="text-xs font-bold uppercase tracking-widest text-blue-200">Depto</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-blue-200">Propietario</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Deuda Anterior</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Expensa mensual</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-green-300 text-right">💵 Efectivo</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-blue-300 text-right">🏦 Transf.</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Fecha pago</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-blue-200 text-right">Saldo fin de {formatMonthLabel(month)}</span>
+              </div>
             </div>
 
             {/* Unit rows */}
@@ -190,7 +222,7 @@ export default function ResumenClient({
                           </span>
                         </div>
                         <p className="text-sm text-gray-400 mt-0.5">{unit.owner_name}</p>
-                        {anterior > 0 && <p className="text-xs text-amber-400 mt-0.5">Anterior: {formatCurrency(anterior)}</p>}
+                        {anterior > 0 && <p className="text-xs text-amber-400 mt-0.5">Deuda anterior: {formatCurrency(anterior)}</p>}
                       </div>
                       <div className="text-right space-y-1">
                         {cash > 0 && <div className="text-sm font-semibold text-green-400">💵 {formatCurrency(cash)}</div>}
@@ -212,10 +244,10 @@ export default function ResumenClient({
                       <span className="text-sm text-right text-gray-400">
                         {feeAmount > 0 ? formatCurrency(feeAmount) : "—"}
                       </span>
-                      <span className={`text-sm text-right font-semibold ${cash > 0 ? "text-green-400" : "text-gray-700"}`}>
+                      <span className={`text-sm text-right font-semibold rounded px-1 ${cash > 0 ? "text-green-300 bg-green-900/30" : "text-gray-700"}`}>
                         {cash > 0 ? formatCurrency(cash) : "—"}
                       </span>
-                      <span className={`text-sm text-right font-semibold ${transfer > 0 ? "text-blue-400" : "text-gray-700"}`}>
+                      <span className={`text-sm text-right font-semibold rounded px-1 ${transfer > 0 ? "text-blue-300 bg-blue-900/30" : "text-gray-700"}`}>
                         {transfer > 0 ? formatCurrency(transfer) : "—"}
                       </span>
                       <span className="text-sm text-right text-gray-500">
@@ -303,14 +335,14 @@ export default function ResumenClient({
               );
             })}
 
-            {/* Interests row */}
-            {bankInterest > 0 && (
-              <div className={`hidden sm:grid ${ING_COLS} gap-x-3 px-5 py-3 bg-blue-950/40 border-t border-blue-900/30 items-center`}>
-                <span className="text-sm font-semibold text-blue-300 col-span-5">Intereses Uala</span>
-                <span className="text-sm text-right font-semibold text-blue-400">{formatCurrency(bankInterest)}</span>
-                <span /><span />
-              </div>
-            )}
+            {/* Interests row — always visible, editable by admin on open months */}
+            <InteresesRow
+              bankInterest={bankInterest}
+              canEdit={canEdit}
+              month={month}
+              onSaved={(v) => { setBankInterestState(v); router.refresh(); }}
+              ING_COLS={ING_COLS}
+            />
 
             {/* Totals row */}
             <div className={`sm:grid ${ING_COLS} gap-x-3 px-5 py-4 bg-blue-900/40 border-t-2 border-blue-700/60 items-center`}>
@@ -331,10 +363,10 @@ export default function ResumenClient({
               <span className="hidden sm:block text-sm text-right font-bold text-gray-300">
                 {feeAmount > 0 ? formatCurrency(units.length * feeAmount) : "—"}
               </span>
-              <span className="hidden sm:block text-sm text-right font-bold text-green-400">
+              <span className="hidden sm:block text-sm text-right font-bold text-green-300 bg-green-900/20 rounded px-1">
                 {formatCurrency(cashIn)}
               </span>
-              <span className="hidden sm:block text-sm text-right font-bold text-blue-400">
+              <span className="hidden sm:block text-sm text-right font-bold text-blue-300 bg-blue-900/20 rounded px-1">
                 {formatCurrency(transferIn + bankInterest)}
               </span>
               <span className="hidden sm:block" />
@@ -663,53 +695,374 @@ function EditPaymentForm({
   );
 }
 
-// ── Closed month admin panel ──────────────────────────────────────────────────
+// ── Intereses Row ─────────────────────────────────────────────────────────────
 
-function ClosedMonthAdmin({ month }: { month: string }) {
+function InteresesRow({
+  bankInterest, canEdit, month, onSaved, ING_COLS,
+}: {
+  bankInterest: number;
+  canEdit: boolean;
+  month: string;
+  onSaved: (value: number) => void;
+  ING_COLS: string;
+}) {
+  const supabase = createClient();
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [inputValue, setInputValue] = useState(String(bankInterest));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  function handleEdit(e: React.MouseEvent) {
+    e.stopPropagation();
+    setInputValue(String(bankInterest));
+    setEditing(true);
+    setConfirming(false);
+    setError("");
+  }
+
+  function handleReview(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!inputValue || isNaN(parseFloat(inputValue))) { setError("Ingresá un monto válido."); return; }
+    setConfirming(true);
+  }
+
+  async function handleConfirm() {
+    setLoading(true);
+    setError("");
+    const amount = parseFloat(inputValue);
+    const { error: err } = await supabase
+      .from("account_balances")
+      .update({ bank_interest: amount })
+      .eq("month", month);
+    if (err) {
+      setError("Error al guardar: " + err.message);
+      setLoading(false);
+      return;
+    }
+    setEditing(false);
+    setConfirming(false);
+    onSaved(amount);
+    setLoading(false);
+  }
+
+  // Confirmation screen
+  if (editing && confirming) {
+    return (
+      <div className={`border-t border-blue-900/30`}>
+        {/* Mobile */}
+        <div className="sm:hidden px-4 py-4 bg-blue-950/60 space-y-3">
+          <p className="text-xs font-semibold text-blue-300 uppercase tracking-widest">Confirmar intereses Uala</p>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-300">Nuevo valor</span>
+            <span className="text-base font-bold text-blue-300">{formatCurrency(parseFloat(inputValue))}</span>
+          </div>
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => setConfirming(false)}
+              className="flex-1 px-3 py-2 text-sm border border-gray-600 rounded-lg text-gray-300 hover:bg-gray-700">
+              ← Corregir
+            </button>
+            <button onClick={handleConfirm} disabled={loading}
+              className="flex-1 px-3 py-2 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50">
+              {loading ? "Guardando…" : "Confirmar"}
+            </button>
+          </div>
+        </div>
+        {/* Desktop */}
+        <div className={`hidden sm:grid ${ING_COLS} gap-x-3 px-5 py-3 bg-blue-950/60 items-center`}>
+          <span className="text-sm font-semibold text-blue-300 col-span-4">Intereses Uala — confirmar {formatCurrency(parseFloat(inputValue))}</span>
+          <span />
+          <span className="text-sm text-right font-bold text-blue-300">{formatCurrency(parseFloat(inputValue))}</span>
+          <div className="flex gap-2 justify-end col-span-2">
+            <button onClick={() => setConfirming(false)}
+              className="text-xs px-2 py-1 border border-gray-600 rounded-lg text-gray-300 hover:bg-gray-700">
+              ← Corregir
+            </button>
+            <button onClick={handleConfirm} disabled={loading}
+              className="text-xs px-3 py-1 font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50">
+              {loading ? "Guardando…" : "Confirmar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Editing screen (input)
+  if (editing) {
+    return (
+      <div className={`border-t border-blue-900/30`}>
+        {/* Mobile */}
+        <form onSubmit={handleReview} className="sm:hidden px-4 py-4 bg-blue-950/60 space-y-3">
+          <p className="text-xs font-semibold text-blue-300 uppercase tracking-widest">Intereses Uala — {formatMonthLabel(month)}</p>
+          <input
+            type="number" min="0" step="0.01" autoFocus
+            value={inputValue} onChange={e => setInputValue(e.target.value)}
+            placeholder="0.00"
+            className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-600 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          {error && <p className="text-xs text-red-400">{error}</p>}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setEditing(false)}
+              className="flex-1 px-3 py-2 text-sm border border-gray-600 rounded-lg text-gray-300 hover:bg-gray-700">
+              Cancelar
+            </button>
+            <button type="submit"
+              className="flex-1 px-3 py-2 text-sm font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-500">
+              Revisar →
+            </button>
+          </div>
+        </form>
+        {/* Desktop */}
+        <form onSubmit={handleReview} className={`hidden sm:grid ${ING_COLS} gap-x-3 px-5 py-2.5 bg-blue-950/60 items-center`}>
+          <span className="text-sm font-semibold text-blue-300 col-span-4">Intereses Uala</span>
+          <span />
+          <input
+            type="number" min="0" step="0.01" autoFocus
+            value={inputValue} onChange={e => setInputValue(e.target.value)}
+            placeholder="0.00"
+            className="px-2 py-1.5 rounded-lg bg-gray-800 border border-gray-600 text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500 w-full"
+          />
+          <div className="flex gap-2 justify-end col-span-2">
+            <button type="button" onClick={() => setEditing(false)}
+              className="text-xs px-2 py-1 border border-gray-600 rounded-lg text-gray-300 hover:bg-gray-700">
+              Cancelar
+            </button>
+            <button type="submit"
+              className="text-xs px-3 py-1 font-bold bg-blue-600 text-white rounded-lg hover:bg-blue-500">
+              Revisar →
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  // Display row — always shown
+  return (
+    <div className={`border-t border-blue-900/30`}>
+      {/* Mobile */}
+      <div className="sm:hidden flex items-center justify-between px-4 py-3 bg-blue-950/40">
+        <span className="text-sm font-semibold text-blue-300">Intereses Uala</span>
+        <div className="flex items-center gap-3">
+          <span className={`text-sm font-semibold ${bankInterest > 0 ? "text-blue-400" : "text-gray-600"}`}>
+            {bankInterest > 0 ? formatCurrency(bankInterest) : "—"}
+          </span>
+          {canEdit && (
+            <button onClick={handleEdit}
+              className="text-xs font-semibold text-blue-400 hover:text-white bg-blue-900/40 hover:bg-blue-700 px-2 py-1 rounded-lg transition-colors">
+              {bankInterest > 0 ? "Editar" : "+ Agregar"}
+            </button>
+          )}
+        </div>
+      </div>
+      {/* Desktop */}
+      <div className={`hidden sm:grid ${ING_COLS} gap-x-3 px-5 py-3 bg-blue-950/40 items-center`}>
+        <span className="text-sm font-semibold text-blue-300 col-span-5">Intereses Uala</span>
+        <span className={`text-sm text-right font-semibold ${bankInterest > 0 ? "text-blue-400" : "text-gray-600"}`}>
+          {bankInterest > 0 ? formatCurrency(bankInterest) : "—"}
+        </span>
+        <span />
+        {canEdit ? (
+          <button onClick={handleEdit}
+            className="text-xs font-semibold text-blue-400 hover:text-white bg-blue-900/40 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors text-right">
+            {bankInterest > 0 ? "Editar" : "+ Agregar"}
+          </button>
+        ) : <span />}
+      </div>
+    </div>
+  );
+}
+
+function CloseMonthPanel({
+  month, accountBalance, feeAmount, units,
+  openingByUnit, cashByUnit, transferByUnit, bankInterest,
+  cashClosing, bankClosing,
+}: {
+  month: string;
+  accountBalance: AccountBalance | null;
+  feeAmount: number;
+  units: Unit[];
+  openingByUnit: Record<string, number>;
+  cashByUnit: Record<string, number>;
+  transferByUnit: Record<string, number>;
+  bankInterest: number;
+  cashClosing: number;
+  bankClosing: number;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
-  async function handleGenerate() {
+  const hasOpeningBalance = accountBalance !== null;
+  const hasFee = feeAmount > 0;
+  const pendingCount = units.filter(u => {
+    const ant = openingByUnit[u.id] ?? 0;
+    const paid = (cashByUnit[u.id] ?? 0) + (transferByUnit[u.id] ?? 0);
+    return ant + feeAmount - paid > 0;
+  }).length;
+
+  const blockers = [
+    !hasOpeningBalance && "Saldo apertura no configurado",
+    !hasFee && "Expensa del mes no configurada",
+  ].filter(Boolean) as string[];
+
+  const warnings = [
+    bankInterest === 0 && "Intereses Uala en $0 — ¿confirmás que no hubo intereses?",
+    pendingCount > 0 && `${pendingCount} unidad${pendingCount !== 1 ? "es" : ""} con saldo pendiente`,
+  ].filter(Boolean) as string[];
+
+  const canClose = blockers.length === 0;
+
+  function nextMonthLabel() {
+    const [y, m] = month.split("-").map(Number);
+    const nm = m === 12 ? 1 : m + 1;
+    const ny = m === 12 ? y + 1 : y;
+    return formatMonthLabel(`${ny}-${String(nm).padStart(2, "0")}`);
+  }
+
+  async function handleClose() {
     setStatus("loading");
     setErrorMsg("");
-    const res = await fetch("/api/reports/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ month }),
-    });
-    if (res.ok) {
+    try {
+      const closeRes = await fetch("/api/months/close", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceMonth: month }),
+      });
+      if (!closeRes.ok) {
+        const { error: e } = await closeRes.json().catch(() => ({ error: "Error al cerrar el mes" }));
+        throw new Error(e ?? "Error al cerrar el mes");
+      }
+      const reportRes = await fetch("/api/reports/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month }),
+      });
+      if (!reportRes.ok) {
+        const { error: e } = await reportRes.json().catch(() => ({ error: "Error al generar el reporte" }));
+        throw new Error(e ?? "Error al generar el reporte");
+      }
       setStatus("done");
-    } else {
-      const { error: e } = await res.json().catch(() => ({ error: "Error desconocido" }));
-      setErrorMsg(e ?? "Error al generar");
+      setTimeout(() => router.refresh(), 1200);
+    } catch (e: any) {
+      setErrorMsg(e.message ?? "Error desconocido");
       setStatus("error");
     }
   }
 
+  if (status === "done") {
+    return (
+      <div className="bg-emerald-900/40 border border-emerald-700/60 rounded-xl px-4 py-3 flex items-center gap-3">
+        <span className="text-emerald-400 text-lg">✓</span>
+        <p className="text-sm text-emerald-300 font-semibold">
+          {formatMonthLabel(month)} cerrado · Reporte generado y publicado en Documentos
+        </p>
+      </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <div className="flex justify-end">
+        <button
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-2 bg-emerald-700 hover:bg-emerald-600 text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors shadow-lg shadow-emerald-900/40"
+        >
+          🔒 Cerrar {formatMonthLabel(month)}
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-gray-800/60 border border-gray-700 rounded-xl px-4 py-3 space-y-2">
-      <div className="flex items-center justify-between">
+    <div className="rounded-2xl border border-emerald-800/60 bg-gray-900 shadow-2xl overflow-hidden">
+      <div className="px-5 py-4 bg-emerald-900/40 border-b border-emerald-800/40 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-gray-400 text-sm">🔒</span>
-          <p className="text-sm text-gray-400">
-            <span className="font-semibold text-gray-300">{formatMonthLabel(month)}</span> está cerrado — solo lectura.
-          </p>
+          <span className="text-lg">🔒</span>
+          <h3 className="text-base font-bold text-white">Cerrar {formatMonthLabel(month)}</h3>
         </div>
-        {status === "done" ? (
-          <span className="text-xs text-green-400 font-semibold">✓ Reporte generado y publicado en Documentos</span>
-        ) : (
+        <button onClick={() => { setOpen(false); setConfirming(false); }}
+          className="text-gray-500 hover:text-gray-300 text-sm px-2">✕</button>
+      </div>
+
+      <div className="px-5 py-4 space-y-3">
+        {blockers.map(b => (
+          <div key={b} className="flex items-start gap-2 text-sm text-red-300">
+            <span className="mt-0.5 shrink-0">❌</span><span>{b}</span>
+          </div>
+        ))}
+        {hasOpeningBalance && (
+          <div className="flex items-start gap-2 text-sm text-emerald-300">
+            <span className="mt-0.5 shrink-0">✅</span>
+            <span>Saldo apertura configurado</span>
+          </div>
+        )}
+        {hasFee && (
+          <div className="flex items-start gap-2 text-sm text-emerald-300">
+            <span className="mt-0.5 shrink-0">✅</span>
+            <span>Expensa configurada — {formatCurrency(feeAmount)}</span>
+          </div>
+        )}
+        {warnings.map(w => (
+          <div key={w} className="flex items-start gap-2 text-sm text-amber-300">
+            <span className="mt-0.5 shrink-0">⚠️</span><span>{w}</span>
+          </div>
+        ))}
+        {canClose && (
+          <div className="mt-1 rounded-xl bg-gray-800 border border-gray-700 divide-y divide-gray-700">
+            <div className="flex justify-between px-4 py-2.5 text-sm">
+              <span className="text-gray-400">Saldo cierre 💵 Caja</span>
+              <span className="font-semibold text-white">{formatCurrency(cashClosing)}</span>
+            </div>
+            <div className="flex justify-between px-4 py-2.5 text-sm">
+              <span className="text-gray-400">Saldo cierre 🏦 Uala</span>
+              <span className="font-semibold text-white">{formatCurrency(bankClosing)}</span>
+            </div>
+            <div className="flex justify-between px-4 py-2.5 text-sm bg-emerald-900/30 rounded-b-xl">
+              <span className="text-emerald-300 font-semibold">Total a trasladar</span>
+              <span className="font-bold text-emerald-300">{formatCurrency(cashClosing + bankClosing)}</span>
+            </div>
+          </div>
+        )}
+        {status === "error" && (
+          <p className="text-xs text-red-400 bg-red-900/20 px-3 py-2 rounded-lg">{errorMsg}</p>
+        )}
+        <div className="flex gap-3 pt-1">
           <button
-            onClick={handleGenerate}
-            disabled={status === "loading"}
-            className="flex items-center gap-1.5 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+            onClick={() => { setOpen(false); setConfirming(false); }}
+            className="flex-1 px-4 py-2.5 text-sm font-semibold border border-gray-600 rounded-xl text-gray-300 hover:bg-gray-800 transition-colors"
           >
-            {status === "loading" ? "Generando…" : "📄 Generar y publicar reporte"}
+            Cancelar
           </button>
+          {!confirming ? (
+            <button
+              onClick={() => setConfirming(true)}
+              disabled={!canClose}
+              className="flex-1 px-4 py-2.5 text-sm font-bold bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 text-white rounded-xl transition-colors"
+            >
+              Continuar →
+            </button>
+          ) : (
+            <button
+              onClick={handleClose}
+              disabled={status === "loading"}
+              className="flex-1 px-4 py-2.5 text-sm font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl transition-colors"
+            >
+              {status === "loading" ? "Cerrando…" : "✓ Confirmar cierre"}
+            </button>
+          )}
+        </div>
+        {confirming && status !== "loading" && (
+          <p className="text-xs text-center text-amber-400">
+            Esta acción es irreversible. El mes quedará en modo solo lectura y se abrirá {nextMonthLabel()}.
+          </p>
         )}
       </div>
-      {status === "error" && (
-        <p className="text-xs text-red-400 bg-red-900/20 px-3 py-1.5 rounded-lg">{errorMsg}</p>
-      )}
     </div>
   );
 }
