@@ -38,14 +38,14 @@ export default async function DashboardPage() {
 async function AdminDashboard({ month }: { month: string }) {
   const svc = createServiceClient();
 
-  const [allBalancesRes, allPaymentsRes, allExpensesRes, feesRes, unitsRes] = await Promise.all([
+  const [allBalancesRes, allPaymentsRes, allExpensesRes, feesRes, announcementsRes] = await Promise.all([
     svc.from("account_balances")
       .select("month, cash_opening, bank_opening, bank_interest")
       .order("month"),
     svc.from("payments").select("date, amount, method"),
     svc.from("expenses").select("date, amount, method"),
     svc.from("monthly_fees").select("amount").eq("month", month).single(),
-    svc.from("units").select("id, name"),
+    svc.from("announcements").select("title, content, date").order("date", { ascending: false }).limit(5),
   ]);
 
   const allBalances = allBalancesRes.data ?? [];
@@ -80,7 +80,6 @@ async function AdminDashboard({ month }: { month: string }) {
   const bankOpening  = Number(currentAb?.bank_opening ?? 0);
   const bankInterest = Number((currentAb as any)?.bank_interest ?? 0);
 
-  // Filter by date (received this month) — consistent with Resumen page
   const cashIn  = allPayments.filter(p => p.date.startsWith(month) && p.method === "efectivo").reduce((s, p) => s + Number(p.amount), 0);
   const bankIn  = allPayments.filter(p => p.date.startsWith(month) && p.method === "transferencia").reduce((s, p) => s + Number(p.amount), 0);
   const cashOut = allExpenses.filter(e => e.date.startsWith(month) && (e.method ?? "transferencia") === "efectivo").reduce((s, e) => s + Number(e.amount), 0);
@@ -93,39 +92,13 @@ async function AdminDashboard({ month }: { month: string }) {
   const totalOut     = cashOut + bankOut;
 
   const feeAmount = feesRes.data?.amount ?? 0;
-
-  // Current month payment totals per unit — by receipt date
-  const [y, m] = month.split("-").map(Number);
-  const nextM = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-  const { data: monthUnitPayments } = await svc
-    .from("payments")
-    .select("unit_id, amount")
-    .gte("date", `${month}-01`)
-    .lt("date", nextM);
-
-  const paidByUnit: Record<string, number> = {};
-  for (const p of monthUnitPayments ?? []) {
-    paidByUnit[p.unit_id] = (paidByUnit[p.unit_id] ?? 0) + Number(p.amount);
-  }
-
-  const units = unitsRes.data ?? [];
-  const pendingCount = feeAmount > 0
-    ? units.filter((u) => getPaymentStatus(paidByUnit[u.id] ?? 0, feeAmount) !== "PAGADO").length
-    : 0;
+  const announcements = announcementsRes.data ?? [];
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
-      <div className="flex items-center justify-between pt-2">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Resumen general</h1>
-          <p className="text-sm text-gray-500">{formatMonthLabel(month)}</p>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/reports/${month}`}
-            className="text-xs text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg px-3 py-1.5 bg-blue-50 transition-colors">
-            📄 Reporte
-          </Link>
-        </div>
+      <div className="pt-2">
+        <h1 className="text-xl font-bold text-gray-900">Inicio</h1>
+        <p className="text-sm text-gray-500">{formatMonthLabel(month)}</p>
       </div>
 
       {/* Two-account balance cards */}
@@ -184,36 +157,49 @@ async function AdminDashboard({ month }: { month: string }) {
         </Card>
       )}
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card>
-          <p className="text-xs text-gray-500 mb-1">Pendientes este mes</p>
-          <p className="text-2xl font-bold text-orange-600">{pendingCount}</p>
-          <p className="text-xs text-gray-400 mt-0.5">de {units.length} unidades</p>
-        </Card>
-        <Card>
-          <p className="text-xs text-gray-500 mb-1">Expensa del mes</p>
-          <p className="text-xl font-bold text-blue-600 truncate">
-            {feeAmount > 0 ? formatCurrency(feeAmount) : <span className="text-sm text-gray-400">No configurada</span>}
-          </p>
-          <p className="text-xs text-gray-400 mt-0.5">{formatMonthLabel(month)}</p>
-        </Card>
-      </div>
+      {/* Fee stat */}
+      <Card>
+        <p className="text-xs text-gray-500 mb-1">Valor expensa del mes</p>
+        <p className="text-xl font-bold text-blue-600 truncate">
+          {feeAmount > 0 ? formatCurrency(feeAmount) : <span className="text-sm text-gray-400">No configurada</span>}
+        </p>
+        <p className="text-xs text-gray-400 mt-0.5">{formatMonthLabel(month)}</p>
+      </Card>
 
-      {/* Quick actions */}
+      {/* Announcements box */}
+      <Card padding={false}>
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-900 text-sm">Avisos</h2>
+          <Link href="/announcements" className="text-xs text-blue-600 hover:text-blue-700">Ver todos →</Link>
+        </div>
+        {announcements.length === 0 ? (
+          <p className="text-sm text-gray-400 px-4 py-4">Sin avisos publicados.</p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {announcements.map((a, i) => (
+              <div key={i} className="px-4 py-3">
+                <p className="text-sm font-medium text-gray-800">{a.title}</p>
+                <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{a.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Quick actions — admin only */}
       <Card padding={false}>
         <div className="p-4 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900 text-sm">Acciones rápidas</h2>
         </div>
         <div className="grid grid-cols-2 divide-x divide-y divide-gray-100">
           {[
-            { href: "/payments", label: "Registrar pago", icon: "💳" },
-            { href: "/expenses", label: "Registrar gasto", icon: "📊" },
+            { href: `/resumen?month=${month}`, label: "Ver resumen del mes", icon: "💳" },
+            { href: `/resumen?month=${month}`, label: "Ver egresos del mes", icon: "📊" },
             { href: "/documents", label: "Subir documento", icon: "📄" },
             { href: "/announcements", label: "Nuevo aviso", icon: "📢" },
           ].map(({ href, label, icon }) => (
             <Link
-              key={href}
+              key={label}
               href={href}
               className="flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors"
             >
@@ -223,33 +209,6 @@ async function AdminDashboard({ month }: { month: string }) {
           ))}
         </div>
       </Card>
-
-      {/* Unit status table */}
-      {feeAmount > 0 && (
-        <Card padding={false}>
-          <div className="p-4 border-b border-gray-100">
-            <h2 className="font-semibold text-gray-900 text-sm">Liquidación — {formatMonthLabel(month)}</h2>
-          </div>
-          <div className="divide-y divide-gray-50">
-            {units.map((unit) => {
-              const paid = paidByUnit[unit.id] ?? 0;
-              const status = getPaymentStatus(paid, feeAmount);
-              const badgeVariant = status === "PAGADO" ? "green" : status === "PARCIAL" ? "yellow" : "red";
-              return (
-                <div key={unit.id} className="flex items-center justify-between px-4 py-2.5">
-                  <span className="text-sm text-gray-700 font-medium w-12">{unit.name}</span>
-                  <div className="flex items-center gap-2">
-                    {paid > 0 && status !== "PAGADO" && (
-                      <span className="text-xs text-gray-400">{formatCurrency(paid)}</span>
-                    )}
-                    <Badge variant={badgeVariant}>{status}</Badge>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
