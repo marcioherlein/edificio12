@@ -20,7 +20,7 @@ export default async function UnitHistoryPage({
   const [unitRes, paymentsRes] = await Promise.all([
     svc.from("units").select("name, owner_name").eq("id", unitId).single(),
     svc.from("payments")
-      .select("id, amount, method, month, date, notes")
+      .select("id, amount, method, month, date, notes, receipt_url")
       .eq("unit_id", unitId)
       .order("date", { ascending: false }),
   ]);
@@ -39,68 +39,100 @@ export default async function UnitHistoryPage({
   const totalPaid = payments.reduce((a, p) => a + Number(p.amount), 0);
 
   return (
-    <div className="min-h-screen bg-gray-950 pb-24">
+    <div className="min-h-screen pb-24" style={{ background: "var(--fiori-page-bg)" }}>
       <div className="max-w-2xl mx-auto px-4 pt-6 space-y-6">
 
         {/* Header */}
         <div className="flex items-start justify-between">
           <div>
-            <Link href="/resumen" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+            <Link href="/resumen" className="text-sm transition-colors" style={{ color: "var(--fiori-blue)" }}>
               ← Volver al resumen
             </Link>
-            <h1 className="text-2xl font-bold text-white mt-2">
+            <h1 className="text-2xl font-bold mt-2" style={{ color: "var(--fiori-text)" }}>
               Unidad {unit?.name ?? "—"}
             </h1>
-            <p className="text-gray-400 text-sm mt-0.5">{unit?.owner_name}</p>
+            <p className="text-sm mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{unit?.owner_name}</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-gray-500 uppercase tracking-widest">Total pagado</p>
-            <p className="text-xl font-bold text-green-400 mt-0.5">{formatCurrency(totalPaid)}</p>
-            <p className="text-xs text-gray-600">{payments.length} pago{payments.length !== 1 ? "s" : ""}</p>
+            <p className="text-xs uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Total pagado</p>
+            <p className="text-xl font-bold mt-0.5" style={{ color: "var(--fiori-success)" }}>{formatCurrency(totalPaid)}</p>
+            <p className="text-xs" style={{ color: "var(--fiori-text-muted)" }}>{payments.length} pago{payments.length !== 1 ? "s" : ""}</p>
           </div>
         </div>
 
         {/* Payment list grouped by month */}
         {payments.length === 0 ? (
-          <div className="rounded-2xl bg-gray-900 border border-gray-800 px-6 py-10 text-center">
-            <p className="text-gray-500">Sin pagos registrados.</p>
+          <div className="rounded border px-6 py-10 text-center bg-white" style={{ borderColor: "var(--fiori-border)" }}>
+            <p style={{ color: "var(--fiori-text-muted)" }}>Sin pagos registrados.</p>
           </div>
         ) : (
           sortedMonths.map(month => {
             const mPayments = byMonth[month];
             const monthTotal = mPayments.reduce((a, p) => a + Number(p.amount), 0);
             return (
-              <div key={month} className="rounded-2xl overflow-hidden border border-gray-800">
+              <div key={month} className="rounded overflow-hidden border" style={{ borderColor: "var(--fiori-border)" }}>
                 {/* Month header */}
-                <div className="bg-blue-900/60 border-b border-blue-800/60 px-5 py-3 flex items-center justify-between">
-                  <span className="text-sm font-bold text-blue-200 uppercase tracking-widest">
+                <div className="px-5 py-3 flex items-center justify-between border-b"
+                  style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
+                  <span className="text-sm font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>
                     {formatMonthLabel(month)}
                   </span>
-                  <span className="text-sm font-bold text-white">{formatCurrency(monthTotal)}</span>
+                  <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>{formatCurrency(monthTotal)}</span>
                 </div>
 
                 {/* Payment rows */}
-                <div className="divide-y divide-gray-800">
+                <div className="divide-y bg-white" style={{ borderColor: "var(--fiori-border)" }}>
                   {mPayments.map(p => (
-                    <div key={p.id} className="flex items-center justify-between px-5 py-4 bg-gray-900 hover:bg-gray-800 transition-colors">
+                    <div key={p.id} className="flex items-center justify-between px-5 py-4"
+                      style={{ borderColor: "var(--fiori-border)" }}>
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">{p.method === "efectivo" ? "💵" : "🏦"}</span>
                         <div>
-                          <p className="text-base font-bold text-white">{formatCurrency(Number(p.amount))}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-sm text-gray-400">{formatDate(p.date)}</span>
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          <p className="text-base font-bold" style={{ color: "var(--fiori-text)" }}>
+                            {formatCurrency(Number(p.amount))}
+                          </p>
+                          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                            <span className="text-sm" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(p.date)}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded border font-medium ${
                               p.method === "efectivo"
-                                ? "bg-green-900/50 text-green-300"
-                                : "bg-blue-900/50 text-blue-300"
+                                ? "bg-[#f1fdf6] text-[#107e3e] border-[#107e3e]/30"
+                                : "bg-[#e8f2ff] text-[#0070f2] border-[#0070f2]/30"
                             }`}>
                               {p.method === "efectivo" ? "Efectivo" : "Transferencia"}
                             </span>
+                            {p.notes && (
+                              <span className="text-xs italic" style={{ color: "var(--fiori-text-muted)" }}>{p.notes}</span>
+                            )}
                           </div>
-                          {p.notes && (
-                            <p className="text-xs text-gray-500 italic mt-0.5">{p.notes}</p>
-                          )}
                         </div>
+                      </div>
+
+                      {/* Attachment links */}
+                      <div className="flex items-center gap-2 ml-3 shrink-0">
+                        {p.method === "efectivo" && (
+                          <a
+                            href={`/api/receipts/${p.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Ver comprobante"
+                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded border transition-colors"
+                            style={{ color: "var(--fiori-warning)", borderColor: "var(--fiori-warning)", background: "#fef6ec" }}
+                          >
+                            🧾 Recibo
+                          </a>
+                        )}
+                        {p.method !== "efectivo" && p.receipt_url && (
+                          <a
+                            href={p.receipt_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Ver comprobante"
+                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded border transition-colors"
+                            style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}
+                          >
+                            📎 Adjunto
+                          </a>
+                        )}
                       </div>
                     </div>
                   ))}
