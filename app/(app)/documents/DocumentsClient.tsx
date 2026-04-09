@@ -6,12 +6,14 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Badge from "@/components/ui/Badge";
 import DocumentUpload from "@/components/admin/DocumentUpload";
+import { formatMonthLabel } from "@/lib/utils";
 
 interface Document {
   id: string;
   title: string;
   file_url: string;
   type: string;
+  month: string | null;
   created_at: string;
 }
 
@@ -58,8 +60,11 @@ export default function DocumentsClient({ documents, isAdmin }: Props) {
                 <span className="text-2xl flex-shrink-0">{TYPE_ICONS[doc.type] ?? "📄"}</span>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-800 truncate">{doc.title}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <Badge variant="gray">{doc.type}</Badge>
+                    {doc.month && (
+                      <Badge variant="blue">{formatMonthLabel(doc.month)}</Badge>
+                    )}
                     <span className="text-xs text-gray-400">
                       {new Date(doc.created_at).toLocaleDateString("es-AR")}
                     </span>
