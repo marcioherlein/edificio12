@@ -785,20 +785,31 @@ function EditPaymentForm({
 
   return (
     <form onSubmit={handleSave} className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Monto *</label>
-          <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
-            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Mes *</label>
-          <select value={month} onChange={e => setMonth(e.target.value)}
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
-            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }}>
-            {buildMonthOptions().map(m => <option key={m} value={m}>{formatMonthLabel(m)}</option>)}
-          </select>
+      <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Monto *</label>
+        <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
+          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+          style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Período que cubre *</label>
+        <div className="border rounded overflow-hidden max-h-48 overflow-y-auto" style={{ borderColor: "var(--fiori-border)" }}>
+          {buildMonthOptions().map((m, idx) => {
+            const checked = m === month;
+            return (
+              <label key={m}
+                className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors border-b last:border-b-0 ${
+                  checked ? "bg-[#e8f2ff]" : idx % 2 === 0 ? "bg-white" : "bg-[#fafafa]"
+                } hover:bg-[#e8f2ff]`}
+                style={{ borderColor: "var(--fiori-border)" }}>
+                <input type="radio" name="editMonth" value={m} checked={checked} onChange={() => setMonth(m)}
+                  className="w-4 h-4 accent-[#0070f2]" />
+                <span className="text-sm" style={{ color: checked ? "var(--fiori-blue)" : "var(--fiori-text)", fontWeight: checked ? 600 : 400 }}>
+                  {formatMonthLabel(m)}
+                </span>
+              </label>
+            );
+          })}
         </div>
       </div>
       <div>
