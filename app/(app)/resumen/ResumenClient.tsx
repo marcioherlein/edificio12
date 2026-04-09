@@ -530,7 +530,7 @@ export default function ResumenClient({
             <BalanceRow label="+ Ingresos expensas" cash={cashIn} bank={transferIn} cashVariant="success" bankVariant="success" totalVariant="success" />
             <InteresesBalanceRow
               bankInterest={bankInterest}
-              canEdit={canEdit}
+              canEdit={isAdmin}
               month={month}
               onSaved={(v) => { setBankInterestState(v); router.refresh(); }}
             />
