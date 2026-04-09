@@ -60,6 +60,7 @@ export default function ResumenClient({
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
   const [editPayment, setEditPayment] = useState<Payment | null>(null);
+  const [editExpense, setEditExpense] = useState<Expense | null>(null);
   const [payingUnit, setPayingUnit] = useState<Unit | null>(null);
   const canEdit = isAdmin && isMonthOpen(month) && !isClosed;
   const [bankInterestState, setBankInterestState] = useState(accountBalance?.bank_interest ?? 0);
@@ -73,6 +74,7 @@ export default function ResumenClient({
   function onPaymentSuccess() { setPaymentOpen(false); setPayingUnit(null); router.refresh(); }
   function onExpenseSuccess() { setExpenseOpen(false); router.refresh(); }
   function onEditSuccess() { setEditPayment(null); router.refresh(); }
+  function onEditExpenseSuccess() { setEditExpense(null); router.refresh(); }
 
   // ── Computed values ──────────────────────────────────────
   const cashIn           = totalCashIn;
@@ -454,7 +456,7 @@ export default function ResumenClient({
                     <div key={exp.id} className="border-b last:border-b-0" style={{ borderColor: "var(--fiori-border)", background: rowBg }}>
                       {/* Mobile */}
                       <div className="sm:hidden flex items-center justify-between px-4 py-4">
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>{exp.description}</p>
                           <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{exp.category} · {formatDate(exp.date)}</p>
                         </div>
@@ -470,6 +472,13 @@ export default function ResumenClient({
                             style={{ color: exp.method === "efectivo" ? "var(--fiori-success)" : "var(--fiori-error)" }}>
                             {exp.method === "efectivo" ? "💵" : "🏦"} {formatCurrency(exp.amount)}
                           </span>
+                          {canEdit && (
+                            <button onClick={() => setEditExpense(exp)}
+                              className="text-xs px-2 py-1.5 rounded border"
+                              style={{ color: "var(--fiori-text-muted)", borderColor: "var(--fiori-border)" }}>
+                              ✏️
+                            </button>
+                          )}
                         </div>
                       </div>
                       {/* Desktop */}
@@ -487,15 +496,20 @@ export default function ResumenClient({
                           style={{ color: exp.method !== "efectivo" ? "var(--fiori-error)" : "var(--fiori-border)" }}>
                           {exp.method !== "efectivo" ? formatCurrency(exp.amount) : "—"}
                         </span>
-                        <div className="flex justify-end">
-                          {exp.receipt_url ? (
+                        <div className="flex justify-end items-center gap-2">
+                          {exp.receipt_url && (
                             <a href={exp.receipt_url} target="_blank" rel="noreferrer"
                               className="text-xs font-semibold px-2.5 py-1.5 rounded border"
                               style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
                               📎 Adjunto
                             </a>
-                          ) : (
-                            <span className="w-20" />
+                          )}
+                          {canEdit && (
+                            <button type="button" onClick={() => setEditExpense(exp)}
+                              className="text-xs px-3 py-1.5 rounded border transition-colors hover:bg-[#f5f6f7]"
+                              style={{ color: "var(--fiori-text-muted)", borderColor: "var(--fiori-border)" }}>
+                              Editar
+                            </button>
                           )}
                         </div>
                       </div>
@@ -596,6 +610,16 @@ export default function ResumenClient({
                 payment={editPayment}
                 onSuccess={onEditSuccess}
                 onCancel={() => setEditPayment(null)}
+              />
+            )}
+          </Modal>
+          <Modal open={!!editExpense} onClose={() => setEditExpense(null)} title="Editar gasto">
+            {editExpense && (
+              <EditExpenseForm
+                expense={editExpense}
+                categories={categories}
+                onSuccess={onEditExpenseSuccess}
+                onCancel={() => setEditExpense(null)}
               />
             )}
           </Modal>
@@ -916,6 +940,206 @@ function EditPaymentForm({
             className="px-4 py-2 text-sm text-white rounded disabled:opacity-50"
             style={{ background: "var(--fiori-blue)" }}>
             {loading ? "Guardando…" : selectedMonths.size > 1 ? `Guardar (${selectedMonths.size} meses)` : "Guardar"}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+// ── Edit Expense Form ────────────────────────────────────────────────────────
+
+function EditExpenseForm({
+  expense, categories, onSuccess, onCancel,
+}: {
+  expense: Expense;
+  categories: { id: string; name: string }[];
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const supabase = createClient();
+  const [description, setDescription] = useState(expense.description);
+  const [amount, setAmount]           = useState(String(expense.amount));
+  const [method, setMethod]           = useState<"efectivo" | "transferencia">(
+    expense.method === "efectivo" ? "efectivo" : "transferencia"
+  );
+  const [category, setCategory]       = useState(expense.category);
+  const [date, setDate]               = useState(expense.date);
+  const [error, setError]             = useState("");
+  const [loading, setLoading]         = useState(false);
+  const [confirming, setConfirming]   = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Detect which fields changed
+  const changes: { field: string; from: string; to: string }[] = [];
+  if (description !== expense.description)
+    changes.push({ field: "Descripción", from: expense.description, to: description });
+  if (parseFloat(amount) !== expense.amount)
+    changes.push({ field: "Monto", from: formatCurrency(expense.amount), to: formatCurrency(parseFloat(amount || "0")) });
+  if (method !== expense.method)
+    changes.push({ field: "Método", from: expense.method === "efectivo" ? "💵 Efectivo" : "🏦 Transferencia", to: method === "efectivo" ? "💵 Efectivo" : "🏦 Transferencia" });
+  if (category !== expense.category)
+    changes.push({ field: "Categoría", from: expense.category, to: category });
+  if (date !== expense.date)
+    changes.push({ field: "Fecha", from: formatDate(expense.date), to: formatDate(date) });
+
+  function handleReview(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!description || !amount || !category) { setError("Completá todos los campos."); return; }
+    if (changes.length === 0) { onCancel(); return; }
+    setConfirming(true);
+  }
+
+  async function handleConfirm() {
+    setError("");
+    setLoading(true);
+    const { error: err } = await supabase
+      .from("expenses")
+      .update({ description, amount: parseFloat(amount), method, category, date })
+      .eq("id", expense.id);
+    if (err) { setError("Error al guardar: " + err.message); setLoading(false); setConfirming(false); return; }
+    onSuccess();
+    setLoading(false);
+  }
+
+  async function handleDelete() {
+    setLoading(true);
+    const { error: err } = await supabase.from("expenses").delete().eq("id", expense.id);
+    if (err) { setError("Error al eliminar: " + err.message); setLoading(false); }
+    else onSuccess();
+  }
+
+  // ── Confirm delete ──
+  if (confirmDelete) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm" style={{ color: "var(--fiori-text)" }}>
+          ¿Eliminar <strong>{expense.description}</strong> ({formatCurrency(expense.amount)}) del {formatDate(expense.date)}?
+        </p>
+        {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
+        <div className="flex gap-2 justify-end">
+          <button onClick={() => setConfirmDelete(false)}
+            className="px-3 py-2 text-sm border rounded"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
+            Cancelar
+          </button>
+          <button onClick={handleDelete} disabled={loading}
+            className="px-3 py-2 text-sm text-white rounded disabled:opacity-50"
+            style={{ background: "var(--fiori-error)" }}>
+            {loading ? "Eliminando…" : "Sí, eliminar"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Confirm changes ──
+  if (confirming) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">⚠️</span>
+          <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>
+            Revisá los cambios antes de guardar
+          </p>
+        </div>
+        <div className="rounded border overflow-hidden" style={{ borderColor: "var(--fiori-border)" }}>
+          <div className="px-4 py-2 border-b text-xs font-bold uppercase tracking-widest"
+            style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
+            Modificaciones
+          </div>
+          {changes.map(c => (
+            <div key={c.field} className="grid grid-cols-[1.2fr_2fr_2fr] gap-x-3 px-4 py-3 border-b last:border-b-0 items-start"
+              style={{ borderColor: "var(--fiori-border)" }}>
+              <span className="text-xs font-semibold" style={{ color: "var(--fiori-text-muted)" }}>{c.field}</span>
+              <span className="text-xs line-through" style={{ color: "var(--fiori-error)" }}>{c.from}</span>
+              <span className="text-xs font-semibold" style={{ color: "var(--fiori-success)" }}>{c.to}</span>
+            </div>
+          ))}
+        </div>
+        {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
+        <div className="flex gap-2 justify-end">
+          <button type="button" onClick={() => setConfirming(false)}
+            className="px-3 py-2 text-sm border rounded"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
+            ← Corregir
+          </button>
+          <button type="button" onClick={handleConfirm} disabled={loading}
+            className="px-4 py-2 text-sm text-white rounded disabled:opacity-50"
+            style={{ background: "var(--fiori-blue)" }}>
+            {loading ? "Guardando…" : "Confirmar cambios"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Form ──
+  return (
+    <form onSubmit={handleReview} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Descripción *</label>
+        <input type="text" required value={description} onChange={e => setDescription(e.target.value)}
+          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+          style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Monto *</label>
+          <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
+            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Fecha *</label>
+          <input type="date" required value={date} onChange={e => setDate(e.target.value)}
+            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Categoría *</label>
+        <select required value={category} onChange={e => setCategory(e.target.value)}
+          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+          style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }}>
+          <option value="">Seleccioná una categoría</option>
+          {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+          {!categories.find(c => c.name === category) && category && (
+            <option value={category}>{category}</option>
+          )}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-2" style={{ color: "var(--fiori-text)" }}>Método</label>
+        <div className="flex gap-3">
+          {(["efectivo", "transferencia"] as const).map(m => (
+            <label key={m} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded border-2 cursor-pointer transition-colors ${
+              method === m ? "border-[#0070f2] bg-[#e8f2ff]" : "border-[#e5e5e5] hover:border-[#c0c0c0]"
+            }`} style={{ color: method === m ? "var(--fiori-blue)" : "var(--fiori-text-muted)" }}>
+              <input type="radio" name="editExpMethod" value={m} checked={method === m} onChange={() => setMethod(m)} className="sr-only" />
+              <span>{m === "efectivo" ? "💵 Efectivo" : "🏦 Transferencia"}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
+      <div className="flex items-center justify-between pt-1">
+        <button type="button" onClick={() => setConfirmDelete(true)}
+          className="text-sm px-2 py-1 rounded transition-colors hover:bg-[#fdf2f2]"
+          style={{ color: "var(--fiori-error)" }}>
+          Eliminar gasto
+        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={onCancel}
+            className="px-3 py-2 text-sm border rounded"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
+            Cancelar
+          </button>
+          <button type="submit" disabled={loading}
+            className="px-4 py-2 text-sm text-white rounded disabled:opacity-50"
+            style={{ background: "var(--fiori-blue)" }}>
+            Revisar →
           </button>
         </div>
       </div>
