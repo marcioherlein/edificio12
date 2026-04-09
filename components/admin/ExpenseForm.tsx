@@ -108,6 +108,7 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
     const { data, error: insertErr } = await supabase
       .from("expenses")
       .insert({
+        description: finalCategory,
         category: finalCategory,
         amount: parseFloat(amount),
         method,
