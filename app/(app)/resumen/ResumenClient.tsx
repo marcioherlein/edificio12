@@ -753,23 +753,53 @@ function EditPaymentForm({
     payment.method === "efectivo" ? "efectivo" : "transferencia"
   );
   const [date, setDate] = useState(payment.date);
-  const [month, setMonth] = useState(payment.month);
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set([payment.month]));
   const [notes, setNotes] = useState(payment.notes ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  function toggleMonth(m: string) {
+    setSelectedMonths(prev => {
+      const next = new Set(prev);
+      if (next.has(m)) { if (next.size > 1) next.delete(m); }
+      else next.add(m);
+      return next;
+    });
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!amount) { setError("Ingresá un monto."); return; }
+    if (!amount || selectedMonths.size === 0) { setError("Completá todos los campos."); return; }
     setLoading(true);
-    const { error: err } = await supabase
-      .from("payments")
-      .update({ amount: parseFloat(amount), method, date, month, notes: notes || null })
-      .eq("id", payment.id);
-    if (err) setError("Error al guardar: " + err.message);
-    else onSuccess();
+    const amt = parseFloat(amount);
+    const months = Array.from(selectedMonths).sort();
+
+    if (selectedMonths.size === 1) {
+      // Simple update — keep existing row
+      const { error: err } = await supabase
+        .from("payments")
+        .update({ amount: amt, method, date, month: months[0], notes: notes || null })
+        .eq("id", payment.id);
+      if (err) { setError("Error al guardar: " + err.message); setLoading(false); return; }
+    } else {
+      // Multiple months: delete original + insert one row per month
+      const { error: delErr } = await supabase.from("payments").delete().eq("id", payment.id);
+      if (delErr) { setError("Error al actualizar: " + delErr.message); setLoading(false); return; }
+      const rows = months.map(m => ({
+        unit_id: payment.unit_id,
+        amount: amt,
+        method,
+        month: m,
+        date,
+        notes: notes || null,
+        receipt_url: payment.receipt_url ?? null,
+      }));
+      const { error: insErr } = await supabase.from("payments").insert(rows);
+      if (insErr) { setError("Error al insertar: " + insErr.message); setLoading(false); return; }
+    }
+    onSuccess();
     setLoading(false);
   }
 
@@ -779,6 +809,8 @@ function EditPaymentForm({
     if (err) { setError("Error al eliminar: " + err.message); setLoading(false); }
     else onSuccess();
   }
+
+  const totalAmount = parseFloat(amount || "0") * selectedMonths.size;
 
   if (confirmDelete) {
     return (
@@ -806,24 +838,32 @@ function EditPaymentForm({
   return (
     <form onSubmit={handleSave} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Monto *</label>
+        <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Monto por mes *</label>
         <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
           className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
           style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
+        {selectedMonths.size > 1 && amount && (
+          <p className="text-xs mt-1" style={{ color: "var(--fiori-blue)" }}>
+            {selectedMonths.size} meses × {formatCurrency(parseFloat(amount))} = <strong>{formatCurrency(totalAmount)}</strong> total
+          </p>
+        )}
       </div>
       <div>
         <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Período que cubre *</label>
+        <p className="text-xs mb-2" style={{ color: "var(--fiori-text-muted)" }}>
+          Seleccioná uno o más meses que salda este pago.
+        </p>
         <div className="border rounded overflow-hidden max-h-48 overflow-y-auto" style={{ borderColor: "var(--fiori-border)" }}>
           {buildMonthOptions().map((m, idx) => {
-            const checked = m === month;
+            const checked = selectedMonths.has(m);
             return (
               <label key={m}
                 className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors border-b last:border-b-0 ${
                   checked ? "bg-[#e8f2ff]" : idx % 2 === 0 ? "bg-white" : "bg-[#fafafa]"
                 } hover:bg-[#e8f2ff]`}
                 style={{ borderColor: "var(--fiori-border)" }}>
-                <input type="radio" name="editMonth" value={m} checked={checked} onChange={() => setMonth(m)}
-                  className="w-4 h-4 accent-[#0070f2]" />
+                <input type="checkbox" checked={checked} onChange={() => toggleMonth(m)}
+                  className="w-4 h-4 rounded accent-[#0070f2]" />
                 <span className="text-sm" style={{ color: checked ? "var(--fiori-blue)" : "var(--fiori-text)", fontWeight: checked ? 600 : 400 }}>
                   {formatMonthLabel(m)}
                 </span>
@@ -875,7 +915,7 @@ function EditPaymentForm({
           <button type="submit" disabled={loading}
             className="px-4 py-2 text-sm text-white rounded disabled:opacity-50"
             style={{ background: "var(--fiori-blue)" }}>
-            {loading ? "Guardando…" : "Guardar"}
+            {loading ? "Guardando…" : selectedMonths.size > 1 ? `Guardar (${selectedMonths.size} meses)` : "Guardar"}
           </button>
         </div>
       </div>
