@@ -71,7 +71,7 @@ export default async function ResumenPage({
         .eq("month", month)
         .order("date"),
       svc.from("expenses")
-        .select("id, description, amount, method, date, category")
+        .select("id, description, amount, method, date, category, receipt_url")
         .gte("date", `${month}-01`)
         .lt("date", nextMonthStr(month))
         .order("date"),

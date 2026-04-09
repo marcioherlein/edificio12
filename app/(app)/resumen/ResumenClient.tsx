@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 
 interface Unit { id: string; name: string; owner_name: string; }
 interface Payment { id: string; unit_id: string; amount: number; method: string; month: string; date: string; notes: string | null; receipt_url?: string | null; }
-interface Expense { id: string; description: string; amount: number; method: string; date: string; category: string; }
+interface Expense { id: string; description: string; amount: number; method: string; date: string; category: string; receipt_url?: string | null; }
 interface AccountBalance { cash_opening: number; bank_opening: number; bank_interest: number; }
 
 interface Props {
@@ -458,13 +458,22 @@ export default function ResumenClient({
                           <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>{exp.description}</p>
                           <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{exp.category} · {formatDate(exp.date)}</p>
                         </div>
-                        <span className="text-sm font-bold ml-3 shrink-0"
-                          style={{ color: exp.method === "efectivo" ? "var(--fiori-success)" : "var(--fiori-error)" }}>
-                          {exp.method === "efectivo" ? "💵" : "🏦"} {formatCurrency(exp.amount)}
-                        </span>
+                        <div className="flex items-center gap-2 ml-3 shrink-0">
+                          {exp.receipt_url && (
+                            <a href={exp.receipt_url} target="_blank" rel="noreferrer"
+                              className="text-xs font-semibold px-2.5 py-1.5 rounded border"
+                              style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
+                              📎
+                            </a>
+                          )}
+                          <span className="text-sm font-bold"
+                            style={{ color: exp.method === "efectivo" ? "var(--fiori-success)" : "var(--fiori-error)" }}>
+                            {exp.method === "efectivo" ? "💵" : "🏦"} {formatCurrency(exp.amount)}
+                          </span>
+                        </div>
                       </div>
                       {/* Desktop */}
-                      <div className="hidden sm:grid grid-cols-[3fr_2fr_1.4fr_1.4fr] gap-x-3 px-5 py-3.5 items-center">
+                      <div className="hidden sm:grid grid-cols-[3fr_2fr_1.4fr_1.4fr_auto] gap-x-3 px-5 py-3.5 items-center">
                         <div>
                           <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>{exp.description}</p>
                           <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(exp.date)}</p>
@@ -478,6 +487,17 @@ export default function ResumenClient({
                           style={{ color: exp.method !== "efectivo" ? "var(--fiori-error)" : "var(--fiori-border)" }}>
                           {exp.method !== "efectivo" ? formatCurrency(exp.amount) : "—"}
                         </span>
+                        <div className="flex justify-end">
+                          {exp.receipt_url ? (
+                            <a href={exp.receipt_url} target="_blank" rel="noreferrer"
+                              className="text-xs font-semibold px-2.5 py-1.5 rounded border"
+                              style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
+                              📎 Adjunto
+                            </a>
+                          ) : (
+                            <span className="w-20" />
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
