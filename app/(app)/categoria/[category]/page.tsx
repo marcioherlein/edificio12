@@ -20,7 +20,7 @@ export default async function CategoryHistoryPage({
 
   const { data: expenses } = await svc
     .from("expenses")
-    .select("id, description, amount, method, date, receipt_url, notes")
+    .select("id, amount, method, date, receipt_url, notes")
     .eq("category", categoryName)
     .order("date", { ascending: false });
 
@@ -89,7 +89,6 @@ export default async function CategoryHistoryPage({
                           <p className="text-base font-bold" style={{ color: "var(--fiori-text)" }}>
                             {formatCurrency(Number(e.amount))}
                           </p>
-                          <p className="text-sm truncate" style={{ color: "var(--fiori-text-muted)" }}>{e.description}</p>
                           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                             <span className="text-sm" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(e.date)}</span>
                             <span className={`text-xs px-2 py-0.5 rounded border font-medium ${

@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 
 interface Unit { id: string; name: string; owner_name: string; }
 interface Payment { id: string; unit_id: string; amount: number; method: string; month: string; date: string; notes: string | null; receipt_url?: string | null; }
-interface Expense { id: string; description: string; amount: number; method: string; date: string; category: string; receipt_url?: string | null; notes?: string | null; }
+interface Expense { id: string; description?: string | null; amount: number; method: string; date: string; category: string; receipt_url?: string | null; notes?: string | null; }
 interface AccountBalance { cash_opening: number; bank_opening: number; bank_interest: number; }
 
 interface Props {
@@ -441,9 +441,8 @@ export default function ResumenClient({
 
           <div className="rounded overflow-hidden border" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
             {/* Column headers */}
-            <div className="hidden sm:grid grid-cols-[3fr_2fr_1.4fr_1.4fr] gap-x-3 px-5 py-2 border-b"
+            <div className="hidden sm:grid grid-cols-[3fr_1.4fr_1.4fr] gap-x-3 px-5 py-2 border-b"
               style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Descripción</span>
               <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Categoría</span>
               <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-success)" }}>Efectivo</span>
               <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-error)" }}>Transferencia</span>
@@ -462,13 +461,12 @@ export default function ResumenClient({
                       {/* Mobile */}
                       <div className="sm:hidden flex items-center justify-between px-4 py-4">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>{exp.description}</p>
-                          <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>
+                          <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>
                             <a href={`/categoria/${encodeURIComponent(exp.category)}`}
                               className="underline underline-offset-2 hover:opacity-70 transition-opacity"
                               style={{ color: "var(--fiori-blue)" }}>{exp.category}</a>
-                            {" · "}{formatDate(exp.date)}
                           </p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(exp.date)}</p>
                           {exp.notes && <p className="text-xs mt-0.5 italic" style={{ color: "var(--fiori-text-muted)" }}>{exp.notes}</p>}
                         </div>
                         <div className="flex items-center gap-2 ml-3 shrink-0">
@@ -493,15 +491,15 @@ export default function ResumenClient({
                         </div>
                       </div>
                       {/* Desktop */}
-                      <div className="hidden sm:grid grid-cols-[3fr_2fr_1.4fr_1.4fr_auto] gap-x-3 px-5 py-3.5 items-center">
+                      <div className="hidden sm:grid grid-cols-[3fr_1.4fr_1.4fr_auto] gap-x-3 px-5 py-3.5 items-center">
                         <div>
-                          <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>{exp.description}</p>
+                          <a href={`/categoria/${encodeURIComponent(exp.category)}`}
+                            className="text-sm font-semibold hover:underline transition-colors"
+                            style={{ color: "var(--fiori-blue)" }}>{exp.category}</a>
                           <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(exp.date)}</p>
                           {exp.notes && <p className="text-xs mt-0.5 italic" style={{ color: "var(--fiori-text-muted)" }}>{exp.notes}</p>}
                         </div>
-                        <a href={`/categoria/${encodeURIComponent(exp.category)}`}
-                          className="text-sm hover:underline transition-colors"
-                          style={{ color: "var(--fiori-blue)" }}>{exp.category}</a>
+                        <span />
                         <span className="text-sm text-right font-semibold"
                           style={{ color: exp.method === "efectivo" ? "var(--fiori-success)" : "var(--fiori-border)" }}>
                           {exp.method === "efectivo" ? formatCurrency(exp.amount) : "—"}
@@ -531,9 +529,9 @@ export default function ResumenClient({
                   );
                 })}
                 {/* Totals */}
-                <div className="grid grid-cols-[3fr_2fr_1.4fr_1.4fr] gap-x-3 px-5 py-4 border-t-2 items-center"
+                <div className="grid grid-cols-[3fr_1.4fr_1.4fr] gap-x-3 px-5 py-4 border-t-2 items-center"
                   style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
-                  <div className="sm:hidden flex justify-between col-span-4">
+                  <div className="sm:hidden flex justify-between col-span-3">
                     <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>Total</span>
                     <div className="text-right">
                       {cashExpenses > 0 && <div className="text-sm font-bold" style={{ color: "var(--fiori-success)" }}>{formatCurrency(cashExpenses)}</div>}
@@ -541,7 +539,6 @@ export default function ResumenClient({
                     </div>
                   </div>
                   <span className="hidden sm:block text-sm font-bold" style={{ color: "var(--fiori-text)" }}>Total</span>
-                  <span className="hidden sm:block" />
                   <span className="hidden sm:block text-sm text-right font-bold" style={{ color: "var(--fiori-success)" }}>
                     {cashExpenses > 0 ? formatCurrency(cashExpenses) : "—"}
                   </span>
@@ -979,7 +976,6 @@ function EditExpenseForm({
   onCancel: () => void;
 }) {
   const supabase = createClient();
-  const [description, setDescription] = useState(expense.description);
   const [amount, setAmount]           = useState(String(expense.amount));
   const [method, setMethod]           = useState<"efectivo" | "transferencia">(
     expense.method === "efectivo" ? "efectivo" : "transferencia"
@@ -1001,8 +997,6 @@ function EditExpenseForm({
 
   // Detect which fields changed
   const changes: { field: string; from: string; to: string }[] = [];
-  if (description !== expense.description)
-    changes.push({ field: "Descripción", from: expense.description, to: description });
   if (parseFloat(amount) !== expense.amount)
     changes.push({ field: "Monto", from: formatCurrency(expense.amount), to: formatCurrency(parseFloat(amount || "0")) });
   if (method !== expense.method)
@@ -1024,7 +1018,7 @@ function EditExpenseForm({
   function handleReview(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!description || !amount || !category) { setError("Completá todos los campos."); return; }
+    if (!amount || !category) { setError("Completá todos los campos."); return; }
     if (changes.length === 0 && !noReceiptWarning) { onCancel(); return; }
     setConfirming(true);
   }
@@ -1046,7 +1040,7 @@ function EditExpenseForm({
       receipt_url = publicUrl;
     }
 
-    const updatePayload: Record<string, unknown> = { description, amount: parseFloat(amount), method, category, date, notes: notes.trim() || null };
+    const updatePayload: Record<string, unknown> = { amount: parseFloat(amount), method, category, date, notes: notes.trim() || null };
     if (receipt_url !== undefined) updatePayload.receipt_url = receipt_url;
 
     const { error: err } = await supabase.from("expenses").update(updatePayload).eq("id", expense.id);
@@ -1067,7 +1061,7 @@ function EditExpenseForm({
     return (
       <div className="space-y-4">
         <p className="text-sm" style={{ color: "var(--fiori-text)" }}>
-          ¿Eliminar <strong>{expense.description}</strong> ({formatCurrency(expense.amount)}) del {formatDate(expense.date)}?
+          ¿Eliminar <strong>{expense.category}</strong> ({formatCurrency(expense.amount)}) del {formatDate(expense.date)}?
         </p>
         {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
         <div className="flex gap-2 justify-end">
@@ -1145,12 +1139,6 @@ function EditExpenseForm({
   // ── Form ──
   return (
     <form onSubmit={handleReview} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Descripción *</label>
-        <input type="text" required value={description} onChange={e => setDescription(e.target.value)}
-          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
-          style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
-      </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Monto *</label>

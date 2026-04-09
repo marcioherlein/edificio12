@@ -7,7 +7,7 @@ import { currentMonth, formatMonthLabel, formatCurrency } from "@/lib/utils";
 function getAllowedWindow(): { minDate: string; maxDate: string; currentMonth: string; graceMonth: string | null } {
   const now = new Date();
   const y = now.getFullYear();
-  const m = now.getMonth(); // 0-indexed
+  const m = now.getMonth();
 
   const firstOfMonth = `${y}-${String(m + 1).padStart(2, "0")}-01`;
   const curMonth = `${y}-${String(m + 1).padStart(2, "0")}`;
@@ -45,10 +45,7 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
   const today = new Date().toISOString().split("T")[0];
   const defaultDate = today > maxDate ? maxDate : today < minDate ? minDate : today;
 
-  // Live category list (grows if user adds a new one)
   const [categories, setCategories] = useState<Category[]>(initialCategories);
-
-  const [description, setDescription] = useState("");
   const [amount, setAmount]           = useState("");
   const [method, setMethod]           = useState<"efectivo" | "transferencia">("transferencia");
   const [category, setCategory]       = useState("");
@@ -66,7 +63,7 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
   function handleReview(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!description || !amount || !finalCategory) {
+    if (!amount || !finalCategory) {
       setError("Completá todos los campos obligatorios.");
       return;
     }
@@ -97,7 +94,6 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
       receipt_url = publicUrl;
     }
 
-    // Insert new category if custom, and add it to the live list
     if (showCustom && customCategory.trim()) {
       const { data: newCat } = await supabase
         .from("expense_categories")
@@ -112,9 +108,8 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
     const { data, error: insertErr } = await supabase
       .from("expenses")
       .insert({
-        description,
-        amount: parseFloat(amount),
         category: finalCategory,
+        amount: parseFloat(amount),
         method,
         date,
         notes: notes.trim() || null,
@@ -144,8 +139,8 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
         <div className="rounded-xl border-2 border-red-200 bg-red-50 overflow-hidden">
           <div className="bg-red-600 px-4 py-3 flex items-center justify-between">
             <div>
-              <p className="text-xs text-red-200 font-medium uppercase tracking-widest">Descripción</p>
-              <p className="text-lg font-bold text-white leading-tight">{description}</p>
+              <p className="text-xs text-red-200 font-medium uppercase tracking-widest">Categoría</p>
+              <p className="text-lg font-bold text-white leading-tight">{finalCategory}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-red-200 font-medium uppercase tracking-widest">Monto</p>
@@ -154,10 +149,6 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
           </div>
 
           <div className="divide-y divide-red-100">
-            <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-sm text-gray-500">Categoría</span>
-              <span className="text-sm font-medium text-gray-800">{finalCategory}</span>
-            </div>
             <div className="flex items-center justify-between px-4 py-3">
               <span className="text-sm text-gray-500">Método</span>
               <span className="text-sm font-medium text-gray-800">
@@ -218,13 +209,6 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Descripción *</label>
-        <input type="text" required value={description} onChange={e => setDescription(e.target.value)}
-          placeholder="Ej: Pago Edenor - Factura A nº 0001-00123456"
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
-
       {/* Category */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Categoría *</label>
@@ -263,15 +247,18 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Fecha *
-            <span className="ml-1 text-xs font-normal text-gray-400">
-              (hasta día 5 del mes siguiente)
-            </span>
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
           <input type="date" required value={date} min={minDate} max={maxDate} onChange={e => setDate(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
         </div>
+      </div>
+
+      {/* Notes */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Notas <span className="font-normal text-gray-400">(opcional)</span></label>
+        <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
+          placeholder="Ej: Factura 0001-00123456, pago parcial, etc."
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
       </div>
 
       {/* Method */}
@@ -305,14 +292,6 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
           </p>
         </div>
       )}
-
-      {/* Notes */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Notas <span className="font-normal text-gray-400">(opcional)</span></label>
-        <input type="text" value={notes} onChange={e => setNotes(e.target.value)}
-          placeholder="Ej: Factura 0001-00123456, pago parcial, etc."
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-      </div>
 
       {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
