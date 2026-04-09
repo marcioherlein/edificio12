@@ -441,11 +441,12 @@ export default function ResumenClient({
 
           <div className="rounded overflow-hidden border" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
             {/* Column headers */}
-            <div className="hidden sm:grid grid-cols-[3fr_1.4fr_1.4fr] gap-x-3 px-5 py-2 border-b"
+            <div className="hidden sm:grid grid-cols-[2fr_1.8fr_1.4fr_1.4fr] gap-x-3 px-5 py-2 border-b"
               style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
               <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Categoría</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-success)" }}>Efectivo</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-error)" }}>Transferencia</span>
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Notas</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>💵 Efectivo</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-error)" }}>🏦 Transf.</span>
             </div>
 
             {expenses.length === 0 ? (
@@ -478,7 +479,7 @@ export default function ResumenClient({
                             </a>
                           )}
                           <span className="text-sm font-bold"
-                            style={{ color: exp.method === "efectivo" ? "var(--fiori-success)" : "var(--fiori-error)" }}>
+                            style={{ color: "var(--fiori-text)" }}>
                             {exp.method === "efectivo" ? "💵" : "🏦"} {formatCurrency(exp.amount)}
                           </span>
                           {canEdit && (
@@ -491,17 +492,18 @@ export default function ResumenClient({
                         </div>
                       </div>
                       {/* Desktop */}
-                      <div className="hidden sm:grid grid-cols-[3fr_1.4fr_1.4fr_auto] gap-x-3 px-5 py-3.5 items-center">
+                      <div className="hidden sm:grid grid-cols-[2fr_1.8fr_1.4fr_1.4fr_auto] gap-x-3 px-5 py-3.5 items-center">
                         <div>
                           <a href={`/categoria/${encodeURIComponent(exp.category)}`}
                             className="text-sm font-semibold hover:underline transition-colors"
                             style={{ color: "var(--fiori-blue)" }}>{exp.category}</a>
                           <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(exp.date)}</p>
-                          {exp.notes && <p className="text-xs mt-0.5 italic" style={{ color: "var(--fiori-text-muted)" }}>{exp.notes}</p>}
                         </div>
-                        <span />
+                        <span className="text-sm italic truncate" style={{ color: "var(--fiori-text-muted)" }}>
+                          {exp.notes || "—"}
+                        </span>
                         <span className="text-sm text-right font-semibold"
-                          style={{ color: exp.method === "efectivo" ? "var(--fiori-success)" : "var(--fiori-border)" }}>
+                          style={{ color: exp.method === "efectivo" ? "var(--fiori-text)" : "var(--fiori-border)" }}>
                           {exp.method === "efectivo" ? formatCurrency(exp.amount) : "—"}
                         </span>
                         <span className="text-sm text-right font-semibold"
@@ -529,17 +531,18 @@ export default function ResumenClient({
                   );
                 })}
                 {/* Totals */}
-                <div className="grid grid-cols-[3fr_1.4fr_1.4fr] gap-x-3 px-5 py-4 border-t-2 items-center"
+                <div className="grid grid-cols-[2fr_1.8fr_1.4fr_1.4fr] gap-x-3 px-5 py-4 border-t-2 items-center"
                   style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
-                  <div className="sm:hidden flex justify-between col-span-3">
+                  <div className="sm:hidden flex justify-between col-span-4">
                     <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>Total</span>
                     <div className="text-right">
-                      {cashExpenses > 0 && <div className="text-sm font-bold" style={{ color: "var(--fiori-success)" }}>{formatCurrency(cashExpenses)}</div>}
+                      {cashExpenses > 0 && <div className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>{formatCurrency(cashExpenses)}</div>}
                       {transferExpenses > 0 && <div className="text-sm font-bold" style={{ color: "var(--fiori-error)" }}>{formatCurrency(transferExpenses)}</div>}
                     </div>
                   </div>
                   <span className="hidden sm:block text-sm font-bold" style={{ color: "var(--fiori-text)" }}>Total</span>
-                  <span className="hidden sm:block text-sm text-right font-bold" style={{ color: "var(--fiori-success)" }}>
+                  <span className="hidden sm:block" />
+                  <span className="hidden sm:block text-sm text-right font-bold" style={{ color: "var(--fiori-text)" }}>
                     {cashExpenses > 0 ? formatCurrency(cashExpenses) : "—"}
                   </span>
                   <span className="hidden sm:block text-sm text-right font-bold" style={{ color: "var(--fiori-error)" }}>
