@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 
 interface Unit { id: string; name: string; owner_name: string; }
 interface Payment { id: string; unit_id: string; amount: number; method: string; month: string; date: string; notes: string | null; receipt_url?: string | null; }
-interface Expense { id: string; description: string; amount: number; method: string; date: string; category: string; receipt_url?: string | null; }
+interface Expense { id: string; description: string; amount: number; method: string; date: string; category: string; receipt_url?: string | null; notes?: string | null; }
 interface AccountBalance { cash_opening: number; bank_opening: number; bank_interest: number; }
 
 interface Props {
@@ -458,7 +458,13 @@ export default function ResumenClient({
                       <div className="sm:hidden flex items-center justify-between px-4 py-4">
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>{exp.description}</p>
-                          <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{exp.category} · {formatDate(exp.date)}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>
+                            <a href={`/categoria/${encodeURIComponent(exp.category)}`}
+                              className="underline underline-offset-2 hover:opacity-70 transition-opacity"
+                              style={{ color: "var(--fiori-blue)" }}>{exp.category}</a>
+                            {" · "}{formatDate(exp.date)}
+                          </p>
+                          {exp.notes && <p className="text-xs mt-0.5 italic" style={{ color: "var(--fiori-text-muted)" }}>{exp.notes}</p>}
                         </div>
                         <div className="flex items-center gap-2 ml-3 shrink-0">
                           {exp.receipt_url && (
@@ -486,8 +492,11 @@ export default function ResumenClient({
                         <div>
                           <p className="text-sm font-semibold" style={{ color: "var(--fiori-text)" }}>{exp.description}</p>
                           <p className="text-xs mt-0.5" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(exp.date)}</p>
+                          {exp.notes && <p className="text-xs mt-0.5 italic" style={{ color: "var(--fiori-text-muted)" }}>{exp.notes}</p>}
                         </div>
-                        <span className="text-sm" style={{ color: "var(--fiori-text-muted)" }}>{exp.category}</span>
+                        <a href={`/categoria/${encodeURIComponent(exp.category)}`}
+                          className="text-sm hover:underline transition-colors"
+                          style={{ color: "var(--fiori-blue)" }}>{exp.category}</a>
                         <span className="text-sm text-right font-semibold"
                           style={{ color: exp.method === "efectivo" ? "var(--fiori-success)" : "var(--fiori-border)" }}>
                           {exp.method === "efectivo" ? formatCurrency(exp.amount) : "—"}
@@ -965,6 +974,7 @@ function EditExpenseForm({
   );
   const [category, setCategory]       = useState(expense.category);
   const [date, setDate]               = useState(expense.date);
+  const [notes, setNotes]             = useState(expense.notes ?? "");
   // Receipt handling: keep existing, remove it, or replace with new file
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [removeReceipt, setRemoveReceipt] = useState(false);
@@ -989,6 +999,8 @@ function EditExpenseForm({
     changes.push({ field: "Categoría", from: expense.category, to: category });
   if (date !== expense.date)
     changes.push({ field: "Fecha", from: formatDate(expense.date), to: formatDate(date) });
+  if (notes !== (expense.notes ?? ""))
+    changes.push({ field: "Notas", from: expense.notes || "—", to: notes || "—" });
   if (receiptFile)
     changes.push({ field: "Adjunto", from: expense.receipt_url ? "Con adjunto" : "Sin adjunto", to: `📎 ${receiptFile.name}` });
   if (removeReceipt && expense.receipt_url)
@@ -1022,7 +1034,7 @@ function EditExpenseForm({
       receipt_url = publicUrl;
     }
 
-    const updatePayload: Record<string, unknown> = { description, amount: parseFloat(amount), method, category, date };
+    const updatePayload: Record<string, unknown> = { description, amount: parseFloat(amount), method, category, date, notes: notes.trim() || null };
     if (receipt_url !== undefined) updatePayload.receipt_url = receipt_url;
 
     const { error: err } = await supabase.from("expenses").update(updatePayload).eq("id", expense.id);
@@ -1167,8 +1179,15 @@ function EditExpenseForm({
         </div>
       </div>
 
-      {/* Receipt management */}
+      {/* Notes */}
       <div>
+        <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Notas <span className="font-normal" style={{ color: "var(--fiori-text-muted)" }}>(opcional)</span></label>
+        <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Ej: Factura 0001-00123456, pago parcial, etc."
+          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+          style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
+      </div>
+
+      {/* Receipt management */}      <div>
         <label className="block text-sm font-medium mb-2" style={{ color: "var(--fiori-text)" }}>Comprobante</label>
         {expense.receipt_url && !removeReceipt && !receiptFile && (
           <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded border"
