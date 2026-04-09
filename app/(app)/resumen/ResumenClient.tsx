@@ -97,6 +97,11 @@ export default function ResumenClient({
   const lastDay = new Date(yr, mo, 0).getDate();
   const closingDateLabel = `${String(lastDay).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${yr}`;
 
+  // Next month label for "apertura" reference
+  const nextYr = mo === 12 ? yr + 1 : yr;
+  const nextMo = mo === 12 ? 1 : mo + 1;
+  const nextMonthLabel = formatMonthLabel(`${nextYr}-${String(nextMo).padStart(2, "0")}`);
+
   return (
     <div className="min-h-screen pb-24" style={{ background: "var(--fiori-page-bg)" }}>
       <div className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
@@ -573,7 +578,7 @@ export default function ResumenClient({
             <BalanceRow label="+ Ingresos expensas" cash={cashIn} bank={transferIn} cashVariant="success" bankVariant="success" totalVariant="success" />
             <InteresesBalanceRow
               bankInterest={bankInterest}
-              canEdit={isAdmin}
+              canEdit={canEdit}
               month={month}
               onSaved={(v) => { setBankInterestState(v); router.refresh(); }}
             />
@@ -582,7 +587,14 @@ export default function ResumenClient({
             {/* Closing row */}
             <div className="grid grid-cols-[3fr_1.5fr_1.5fr_1.5fr] gap-x-3 px-5 py-4 border-t-2"
               style={{ background: "#f1fdf6", borderColor: "var(--fiori-success)" }}>
-              <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>= Saldo {closingDateLabel}</span>
+              <div>
+                <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>= Saldo {closingDateLabel}</span>
+                {isClosed && (
+                  <p className="text-xs mt-0.5" style={{ color: "var(--fiori-success)" }}>
+                    → Apertura {nextMonthLabel}
+                  </p>
+                )}
+              </div>
               <span className="text-sm text-right font-bold" style={{ color: "var(--fiori-text)" }}>{formatCurrency(cashClosing)}</span>
               <span className="text-sm text-right font-bold" style={{ color: "var(--fiori-text)" }}>{formatCurrency(bankClosing)}</span>
               <span className="text-sm text-right font-bold" style={{ color: "var(--fiori-success)" }}>

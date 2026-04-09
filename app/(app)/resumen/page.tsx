@@ -58,7 +58,7 @@ export default async function ResumenPage({
       svc.from("units").select("id, name, owner_name"),
       svc.from("monthly_fees").select("amount").eq("month", month).single(),
       svc.from("account_balances")
-        .select("cash_opening, bank_opening, bank_interest, closed")
+        .select("cash_opening, bank_opening, bank_interest")
         .eq("month", month).single(),
       svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
       // Payments RECEIVED this calendar month (by date) — used for cash balance AND as frozen ledger for closed months
@@ -84,7 +84,7 @@ export default async function ResumenPage({
     openingByUnit[b.unit_id] = Number(b.opening_balance);
   }
 
-  const isClosed = !!(accountBalRes.data as any)?.closed || !isMonthOpen(month);
+  const isClosed = !isMonthOpen(month);
 
   // Always use DATE-bounded payments for per-unit display.
   // A payment belongs to the month it was physically received, regardless of which
@@ -148,7 +148,7 @@ export default async function ResumenPage({
       accountBalance={ab ? {
         cash_opening: Number(ab.cash_opening),
         bank_opening: Number(ab.bank_opening),
-        bank_interest: Number((ab as any).bank_interest ?? 0),
+        bank_interest: Number(ab.bank_interest ?? 0),
       } : null}
       isAdmin={isAdmin}
       isClosed={isClosed}
