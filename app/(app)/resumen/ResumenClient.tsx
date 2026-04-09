@@ -965,10 +965,17 @@ function EditExpenseForm({
   );
   const [category, setCategory]       = useState(expense.category);
   const [date, setDate]               = useState(expense.date);
+  // Receipt handling: keep existing, remove it, or replace with new file
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [removeReceipt, setRemoveReceipt] = useState(false);
   const [error, setError]             = useState("");
   const [loading, setLoading]         = useState(false);
   const [confirming, setConfirming]   = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Effective receipt state after edits
+  const effectiveReceiptUrl = removeReceipt ? null : (receiptFile ? URL.createObjectURL(receiptFile) : expense.receipt_url ?? null);
+  const hasReceipt = !!receiptFile || (!removeReceipt && !!expense.receipt_url);
 
   // Detect which fields changed
   const changes: { field: string; from: string; to: string }[] = [];
@@ -982,22 +989,43 @@ function EditExpenseForm({
     changes.push({ field: "Categoría", from: expense.category, to: category });
   if (date !== expense.date)
     changes.push({ field: "Fecha", from: formatDate(expense.date), to: formatDate(date) });
+  if (receiptFile)
+    changes.push({ field: "Adjunto", from: expense.receipt_url ? "Con adjunto" : "Sin adjunto", to: `📎 ${receiptFile.name}` });
+  if (removeReceipt && expense.receipt_url)
+    changes.push({ field: "Adjunto", from: "Con adjunto", to: "Eliminado" });
+
+  // Warning: transferencia without attachment
+  const noReceiptWarning = method === "transferencia" && !hasReceipt;
 
   function handleReview(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!description || !amount || !category) { setError("Completá todos los campos."); return; }
-    if (changes.length === 0) { onCancel(); return; }
+    if (changes.length === 0 && !noReceiptWarning) { onCancel(); return; }
     setConfirming(true);
   }
 
   async function handleConfirm() {
     setError("");
     setLoading(true);
-    const { error: err } = await supabase
-      .from("expenses")
-      .update({ description, amount: parseFloat(amount), method, category, date })
-      .eq("id", expense.id);
+
+    let receipt_url: string | null | undefined = undefined; // undefined = don't change
+
+    if (removeReceipt) {
+      receipt_url = null;
+    } else if (receiptFile) {
+      const ext = receiptFile.name.split(".").pop() ?? "pdf";
+      const filename = `expense-${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("receipts").upload(filename, receiptFile);
+      if (uploadErr) { setError("Error al subir el adjunto: " + uploadErr.message); setLoading(false); setConfirming(false); return; }
+      const { data: { publicUrl } } = supabase.storage.from("receipts").getPublicUrl(filename);
+      receipt_url = publicUrl;
+    }
+
+    const updatePayload: Record<string, unknown> = { description, amount: parseFloat(amount), method, category, date };
+    if (receipt_url !== undefined) updatePayload.receipt_url = receipt_url;
+
+    const { error: err } = await supabase.from("expenses").update(updatePayload).eq("id", expense.id);
     if (err) { setError("Error al guardar: " + err.message); setLoading(false); setConfirming(false); return; }
     onSuccess();
     setLoading(false);
@@ -1044,20 +1072,35 @@ function EditExpenseForm({
             Revisá los cambios antes de guardar
           </p>
         </div>
-        <div className="rounded border overflow-hidden" style={{ borderColor: "var(--fiori-border)" }}>
-          <div className="px-4 py-2 border-b text-xs font-bold uppercase tracking-widest"
-            style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
-            Modificaciones
+
+        {/* No-receipt warning for transferencia */}
+        {noReceiptWarning && (
+          <div className="flex items-start gap-2 px-3 py-3 rounded border"
+            style={{ background: "#fff8ec", borderColor: "var(--fiori-warning)" }}>
+            <span className="text-base mt-0.5">⚠️</span>
+            <p className="text-sm" style={{ color: "var(--fiori-warning)" }}>
+              Este gasto es por <strong>transferencia</strong> pero no tiene comprobante adjunto. ¿Estás seguro que querés guardar sin adjunto?
+            </p>
           </div>
-          {changes.map(c => (
-            <div key={c.field} className="grid grid-cols-[1.2fr_2fr_2fr] gap-x-3 px-4 py-3 border-b last:border-b-0 items-start"
-              style={{ borderColor: "var(--fiori-border)" }}>
-              <span className="text-xs font-semibold" style={{ color: "var(--fiori-text-muted)" }}>{c.field}</span>
-              <span className="text-xs line-through" style={{ color: "var(--fiori-error)" }}>{c.from}</span>
-              <span className="text-xs font-semibold" style={{ color: "var(--fiori-success)" }}>{c.to}</span>
+        )}
+
+        {changes.length > 0 && (
+          <div className="rounded border overflow-hidden" style={{ borderColor: "var(--fiori-border)" }}>
+            <div className="px-4 py-2 border-b text-xs font-bold uppercase tracking-widest"
+              style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
+              Modificaciones
             </div>
-          ))}
-        </div>
+            {changes.map(c => (
+              <div key={c.field} className="grid grid-cols-[1.2fr_2fr_2fr] gap-x-3 px-4 py-3 border-b last:border-b-0 items-start"
+                style={{ borderColor: "var(--fiori-border)" }}>
+                <span className="text-xs font-semibold" style={{ color: "var(--fiori-text-muted)" }}>{c.field}</span>
+                <span className="text-xs line-through" style={{ color: "var(--fiori-error)" }}>{c.from}</span>
+                <span className="text-xs font-semibold" style={{ color: "var(--fiori-success)" }}>{c.to}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
         <div className="flex gap-2 justify-end">
           <button type="button" onClick={() => setConfirming(false)}
@@ -1067,8 +1110,8 @@ function EditExpenseForm({
           </button>
           <button type="button" onClick={handleConfirm} disabled={loading}
             className="px-4 py-2 text-sm text-white rounded disabled:opacity-50"
-            style={{ background: "var(--fiori-blue)" }}>
-            {loading ? "Guardando…" : "Confirmar cambios"}
+            style={{ background: noReceiptWarning ? "var(--fiori-warning)" : "var(--fiori-blue)" }}>
+            {loading ? "Guardando…" : noReceiptWarning ? "Guardar sin adjunto" : "Confirmar cambios"}
           </button>
         </div>
       </div>
@@ -1123,6 +1166,54 @@ function EditExpenseForm({
           ))}
         </div>
       </div>
+
+      {/* Receipt management */}
+      <div>
+        <label className="block text-sm font-medium mb-2" style={{ color: "var(--fiori-text)" }}>Comprobante</label>
+        {expense.receipt_url && !removeReceipt && !receiptFile && (
+          <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded border"
+            style={{ borderColor: "var(--fiori-border)", background: "#f9f9f9" }}>
+            <span className="text-sm flex-1" style={{ color: "var(--fiori-blue)" }}>📎 Adjunto actual</span>
+            <a href={expense.receipt_url} target="_blank" rel="noreferrer"
+              className="text-xs px-2 py-1 rounded border"
+              style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)" }}>
+              Ver
+            </a>
+            <button type="button" onClick={() => setRemoveReceipt(true)}
+              className="text-xs px-2 py-1 rounded border"
+              style={{ color: "var(--fiori-error)", borderColor: "var(--fiori-error)" }}>
+              Eliminar
+            </button>
+          </div>
+        )}
+        {removeReceipt && (
+          <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded border"
+            style={{ borderColor: "var(--fiori-warning)", background: "#fff8ec" }}>
+            <span className="text-sm flex-1" style={{ color: "var(--fiori-warning)" }}>Se eliminará el adjunto actual</span>
+            <button type="button" onClick={() => setRemoveReceipt(false)}
+              className="text-xs px-2 py-1 rounded border"
+              style={{ color: "var(--fiori-text-muted)", borderColor: "var(--fiori-border)" }}>
+              Deshacer
+            </button>
+          </div>
+        )}
+        {receiptFile ? (
+          <div className="flex items-center gap-2 px-3 py-2 rounded border"
+            style={{ borderColor: "var(--fiori-success)", background: "#f1fdf6" }}>
+            <span className="text-sm flex-1 truncate" style={{ color: "var(--fiori-success)" }}>📎 {receiptFile.name}</span>
+            <button type="button" onClick={() => setReceiptFile(null)}
+              className="text-xs px-2 py-1 rounded border shrink-0"
+              style={{ color: "var(--fiori-text-muted)", borderColor: "var(--fiori-border)" }}>
+              Quitar
+            </button>
+          </div>
+        ) : (
+          <input type="file" accept="image/*,.pdf"
+            onChange={e => { setReceiptFile(e.target.files?.[0] ?? null); setRemoveReceipt(false); }}
+            className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-[#e8f2ff] file:text-[#0070f2] hover:file:bg-[#d0e8ff]" />
+        )}
+      </div>
+
       {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
       <div className="flex items-center justify-between pt-1">
         <button type="button" onClick={() => setConfirmDelete(true)}
