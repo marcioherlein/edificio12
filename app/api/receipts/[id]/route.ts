@@ -324,16 +324,21 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const { payer_name } = await request.json();
+  const body = await request.json();
+  const payer_name = typeof body?.payer_name === "string"
+    ? body.payer_name.trim().slice(0, 200) || null
+    : null;
+
   const svc = createServiceClient();
 
   const { error } = await svc
     .from("payments")
-    .update({ payer_name: payer_name?.trim() || null })
+    .update({ payer_name })
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[receipts PATCH]", error);
+    return NextResponse.json({ error: "Error al actualizar el comprobante." }, { status: 500 });
   }
   return NextResponse.json({ ok: true });
 }
