@@ -1,4 +1,4 @@
-import { createServiceClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { formatCurrency, formatMonthLabel } from "@/lib/utils";
 import Link from "next/link";
 import GenerateReceiptButton from "@/components/admin/GenerateReceiptButton";
@@ -17,6 +17,14 @@ export default async function UnitHistoryPage({
 }) {
   const { unitId } = await params;
   const svc = createServiceClient();
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  let isAdmin = false;
+  if (user) {
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    isAdmin = profile?.role === "admin";
+  }
 
   const [unitRes, paymentsRes] = await Promise.all([
     svc.from("units").select("name, owner_name").eq("id", unitId).single(),
@@ -110,11 +118,13 @@ export default async function UnitHistoryPage({
 
                       {/* Attachment links */}
                       <div className="flex items-center gap-2 ml-3 shrink-0">
-                        <GenerateReceiptButton
-                          paymentId={p.id}
-                          defaultName={unit?.owner_name ?? ""}
-                          existingPayerName={(p as any).payer_name}
-                        />
+                        {isAdmin && (
+                          <GenerateReceiptButton
+                            paymentId={p.id}
+                            defaultName={unit?.owner_name ?? ""}
+                            existingPayerName={(p as any).payer_name}
+                          />
+                        )}
                         {p.receipt_url && (
                           <a
                             href={p.receipt_url}

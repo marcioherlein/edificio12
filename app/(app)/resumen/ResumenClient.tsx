@@ -356,13 +356,15 @@ export default function ResumenClient({
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              <span onClick={(e) => e.stopPropagation()}>
-                                <GenerateReceiptButton
-                                  paymentId={p.id}
-                                  defaultName={unit.owner_name}
-                                  existingPayerName={p.payer_name}
-                                />
-                              </span>
+                              {isAdmin && (
+                                <span onClick={(e) => e.stopPropagation()}>
+                                  <GenerateReceiptButton
+                                    paymentId={p.id}
+                                    defaultName={unit.owner_name}
+                                    existingPayerName={p.payer_name}
+                                  />
+                                </span>
+                              )}
                               {p.method !== "efectivo" && p.receipt_url && (
                                 <a href={p.receipt_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
                                   className="text-xs font-semibold px-2.5 py-1.5 rounded border"
