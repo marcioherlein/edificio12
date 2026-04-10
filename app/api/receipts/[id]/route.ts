@@ -1,6 +1,6 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, formatMonthLabel } from "@/lib/utils";
 
 export async function GET(
   _request: Request,
@@ -11,7 +11,7 @@ export async function GET(
 
   const { data: payment, error } = await svc
     .from("payments")
-    .select("*, units(name)")
+    .select("*, units(name, owner_name)")
     .eq("id", id)
     .single();
 
@@ -19,72 +19,285 @@ export async function GET(
     return new NextResponse("Comprobante no encontrado.", { status: 404 });
   }
 
-  const unitName = (payment as any).units?.name ?? "—";
+  const unitName    = (payment as any).units?.name ?? "—";
+  const ownerName   = (payment as any).units?.owner_name ?? "—";
+  const payerName   = (payment as any).payer_name || ownerName;
   const methodLabel = payment.method === "efectivo" ? "Efectivo" : "Transferencia bancaria";
+  const periodLabel = formatMonthLabel(payment.month);
+  const receiptId   = payment.id as string;
+  const shortId     = receiptId.slice(0, 8).toUpperCase();
 
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Comprobante de pago</title>
+  <title>Comprobante #${shortId}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; display: flex; justify-content: center; align-items: flex-start; padding: 40px 16px; min-height: 100vh; }
-    .receipt { background: white; border-radius: 16px; width: 100%; max-width: 440px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-    .header { background: linear-gradient(135deg, #2563eb, #1e40af); color: white; padding: 28px 24px; text-align: center; }
-    .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
-    .header p { font-size: 13px; opacity: 0.8; margin-top: 4px; }
-    .badge { display: inline-block; background: rgba(255,255,255,0.2); border-radius: 20px; padding: 3px 12px; font-size: 11px; font-weight: 600; margin-top: 10px; letter-spacing: 0.5px; }
-    .body { padding: 24px; }
-    .amount-box { background: #f0f9ff; border: 2px solid #bae6fd; border-radius: 12px; padding: 16px; text-align: center; margin-bottom: 20px; }
-    .amount-box .label { font-size: 12px; color: #0369a1; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-    .amount-box .amount { font-size: 32px; font-weight: 800; color: #1e3a8a; margin-top: 4px; }
-    .row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 40px 16px;
+      min-height: 100vh;
+    }
+    .page { width: 100%; max-width: 480px; }
+
+    /* Print button */
+    .print-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      justify-content: center;
+    }
+    .print-btn:hover { background: #2563eb; }
+
+    /* Receipt card */
+    .receipt {
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+
+    /* Header */
+    .header {
+      background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+      color: white;
+      padding: 28px 28px 24px;
+    }
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .building-name {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .receipt-badge {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+    .receipt-subtitle {
+      font-size: 13px;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 20px;
+    }
+
+    /* Amount block */
+    .amount-block {
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.20);
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .amount-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 4px;
+    }
+    .amount-value {
+      font-size: 30px;
+      font-weight: 800;
+      color: white;
+      letter-spacing: -1px;
+    }
+    .paid-badge {
+      background: #16a34a;
+      color: white;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* Body */
+    .body { padding: 0 28px; }
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      padding: 18px 0 8px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 11px 0;
+      border-bottom: 1px solid #f8fafc;
+    }
     .row:last-child { border-bottom: none; }
-    .row .key { font-size: 13px; color: #6b7280; }
-    .row .val { font-size: 13px; font-weight: 600; color: #111827; text-align: right; max-width: 55%; word-break: break-all; }
-    .footer { background: #f9fafb; padding: 16px 24px; text-align: center; }
-    .footer p { font-size: 11px; color: #9ca3af; line-height: 1.5; }
-    @media print { body { background: white; padding: 0; } .receipt { box-shadow: none; border-radius: 0; max-width: 100%; } }
+    .row-key {
+      font-size: 13px;
+      color: #64748b;
+      min-width: 130px;
+    }
+    .row-val {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+      text-align: right;
+      flex: 1;
+    }
+    .row-val.muted { color: #94a3b8; font-size: 11px; word-break: break-all; }
+
+    /* Signature */
+    .signature {
+      margin: 20px 28px 0;
+      padding: 20px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .sig-line {
+      width: 200px;
+      height: 1px;
+      background: #334155;
+      margin: 0 auto 10px;
+    }
+    .sig-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .sig-role {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+
+    /* Footer */
+    .footer {
+      padding: 16px 28px 24px;
+      text-align: center;
+    }
+    .footer p {
+      font-size: 11px;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+    .footer-id {
+      display: inline-block;
+      margin-top: 8px;
+      font-family: monospace;
+      font-size: 10px;
+      color: #cbd5e1;
+      letter-spacing: 0.5px;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .print-btn { display: none; }
+      .receipt { box-shadow: none; border-radius: 0; border: none; max-width: 100%; }
+      .page { max-width: 100%; }
+    }
   </style>
 </head>
 <body>
-  <div class="receipt">
-    <div class="header">
-      <h1>Edificio 12</h1>
-      <p>Comprobante de pago de expensas</p>
-      <span class="badge">PAGADO ✓</span>
-    </div>
-    <div class="body">
-      <div class="amount-box">
-        <div class="label">Monto abonado</div>
-        <div class="amount">${formatCurrency(payment.amount)}</div>
+  <div class="page">
+    <button class="print-btn" onclick="window.print()">
+      🖨️ Imprimir / Guardar como PDF
+    </button>
+
+    <div class="receipt">
+      <!-- Header -->
+      <div class="header">
+        <div class="header-top">
+          <div class="building-name">Edificio 12</div>
+          <div class="receipt-badge">✓ Pagado</div>
+        </div>
+        <div class="receipt-subtitle">Comprobante de recibo de pago de expensas</div>
+        <div class="amount-block">
+          <div>
+            <div class="amount-label">Monto abonado</div>
+            <div class="amount-value">${formatCurrency(payment.amount)}</div>
+          </div>
+          <div class="paid-badge">RECIBIDO</div>
+        </div>
       </div>
-      <div class="row">
-        <span class="key">Departamento</span>
-        <span class="val">${unitName}</span>
+
+      <!-- Body -->
+      <div class="body">
+        <div class="section-title">Detalle del pago</div>
+
+        <div class="row">
+          <span class="row-key">Recibí de</span>
+          <span class="row-val">${payerName}</span>
+        </div>
+        <div class="row">
+          <span class="row-key">Departamento</span>
+          <span class="row-val">${unitName}</span>
+        </div>
+        <div class="row">
+          <span class="row-key">Período</span>
+          <span class="row-val">${periodLabel}</span>
+        </div>
+        <div class="row">
+          <span class="row-key">Fecha de pago</span>
+          <span class="row-val">${formatDate(payment.date)}</span>
+        </div>
+        <div class="row">
+          <span class="row-key">Forma de pago</span>
+          <span class="row-val">${methodLabel}</span>
+        </div>
+        ${(payment as any).notes ? `
+        <div class="row">
+          <span class="row-key">Observaciones</span>
+          <span class="row-val">${(payment as any).notes}</span>
+        </div>` : ""}
+        <div class="row">
+          <span class="row-key">N° comprobante</span>
+          <span class="row-val muted">${receiptId}</span>
+        </div>
       </div>
-      <div class="row">
-        <span class="key">Período</span>
-        <span class="val">${payment.month}</span>
+
+      <!-- Signature -->
+      <div class="signature">
+        <div class="sig-line"></div>
+        <div class="sig-name">Fabiana Herlein</div>
+        <div class="sig-role">Administradora — Edificio 12</div>
       </div>
-      <div class="row">
-        <span class="key">Fecha de pago</span>
-        <span class="val">${formatDate(payment.date)}</span>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p>Este comprobante acredita la recepción del pago indicado.<br>
+        Es válido como constancia de pago de expensas.</p>
+        <span class="footer-id">#${receiptId}</span>
       </div>
-      <div class="row">
-        <span class="key">Forma de pago</span>
-        <span class="val">${methodLabel}</span>
-      </div>
-      ${payment.notes ? `<div class="row"><span class="key">Notas</span><span class="val">${payment.notes}</span></div>` : ""}
-      <div class="row">
-        <span class="key">N° de comprobante</span>
-        <span class="val" style="font-size:10px;color:#9ca3af">${payment.id}</span>
-      </div>
-    </div>
-    <div class="footer">
-      <p>Este comprobante fue generado automáticamente por el sistema de gestión<br>del Edificio 12. Es válido como constancia de pago.</p>
     </div>
   </div>
 </body>
@@ -93,4 +306,23 @@ export async function GET(
   return new NextResponse(html, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const { payer_name } = await request.json();
+  const svc = createServiceClient();
+
+  const { error } = await svc
+    .from("payments")
+    .update({ payer_name: payer_name?.trim() || null })
+    .eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ ok: true });
 }

@@ -4,11 +4,12 @@ import { formatCurrency, formatDate, formatMonthLabel, currentMonth as getCurren
 import Modal from "@/components/ui/Modal";
 import PaymentForm from "@/components/admin/PaymentForm";
 import ExpenseForm from "@/components/admin/ExpenseForm";
+import GenerateReceiptButton from "@/components/admin/GenerateReceiptButton";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Unit { id: string; name: string; owner_name: string; }
-interface Payment { id: string; unit_id: string; amount: number; method: string; month: string; date: string; notes: string | null; receipt_url?: string | null; }
+interface Payment { id: string; unit_id: string; amount: number; method: string; month: string; date: string; notes: string | null; receipt_url?: string | null; payer_name?: string | null; }
 interface Expense { id: string; description?: string | null; amount: number; method: string; date: string; category: string; receipt_url?: string | null; notes?: string | null; }
 interface AccountBalance { cash_opening: number; bank_opening: number; bank_interest: number; }
 
@@ -211,14 +212,14 @@ export default function ResumenClient({
               const expanded   = expandedUnit === unit.id;
               const unitPays   = paymentsByUnit[unit.id] ?? [];
               const isPaid     = saldo <= 0;
-              const rowBg      = idx % 2 === 0 ? "#ffffff" : "#fafafa";
+              const rowBg      = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
 
               return (
                 <div key={unit.id} className="border-b last:border-b-0" style={{ borderColor: "var(--fiori-border)" }}>
                   {/* Main row */}
                   <div
                     onClick={() => setExpandedUnit(expanded ? null : unit.id)}
-                    className="cursor-pointer transition-colors hover:bg-[#f5f6f7]"
+                    className="cursor-pointer transition-colors hover:bg-[#f8fafc]"
                     style={{ background: expanded ? "#edf4ff" : rowBg }}
                   >
                     {/* ── Mobile layout: 3-line card ── */}
@@ -232,8 +233,8 @@ export default function ResumenClient({
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
                           <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${isPaid
-                            ? "bg-[#f1fdf6] text-[#107e3e] border-[#107e3e]/30"
-                            : "bg-[#fef6ec] text-[#e9730c] border-[#e9730c]/30"}`}>
+                            ? "bg-[#f0fdf4] text-[#16a34a] border-[#16a34a]/30"
+                            : "bg-[#fef6ec] text-[#d97706] border-[#d97706]/30"}`}>
                             {isPaid ? "Al día" : `Debe ${formatCurrency(saldo)}`}
                           </span>
                           <span className="text-xs" style={{ color: "var(--fiori-text-muted)" }}>{expanded ? "▲" : "▼"}</span>
@@ -278,14 +279,14 @@ export default function ResumenClient({
                       <span className="text-sm text-right font-semibold rounded px-1"
                         style={{
                           color: cash > 0 ? "var(--fiori-success)" : "var(--fiori-border)",
-                          background: cash > 0 ? "#f1fdf6" : "transparent",
+                          background: cash > 0 ? "#f0fdf4" : "transparent",
                         }}>
                         {cash > 0 ? formatCurrency(cash) : "—"}
                       </span>
                       <span className="text-sm text-right font-semibold rounded px-1"
                         style={{
                           color: transfer > 0 ? "var(--fiori-blue)" : "var(--fiori-border)",
-                          background: transfer > 0 ? "#e8f2ff" : "transparent",
+                          background: transfer > 0 ? "#eff6ff" : "transparent",
                         }}>
                         {transfer > 0 ? formatCurrency(transfer) : "—"}
                       </span>
@@ -301,7 +302,7 @@ export default function ResumenClient({
 
                   {/* Expanded payment detail */}
                   {expanded && (
-                    <div className="border-t px-5 py-4 space-y-2" style={{ borderColor: "var(--fiori-border)", background: "#f5f6f7" }}>
+                    <div className="border-t px-5 py-4 space-y-2" style={{ borderColor: "var(--fiori-border)", background: "#f8fafc" }}>
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>
                           Pagos — {unit.name} · {unit.owner_name}
@@ -340,13 +341,13 @@ export default function ResumenClient({
                                   <span className="text-sm" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(p.date)}</span>
                                   <span className={`text-xs px-2 py-0.5 rounded border font-medium ${
                                     p.method === "efectivo"
-                                      ? "bg-[#f1fdf6] text-[#107e3e] border-[#107e3e]/30"
-                                      : "bg-[#e8f2ff] text-[#0070f2] border-[#0070f2]/30"
+                                      ? "bg-[#f0fdf4] text-[#16a34a] border-[#16a34a]/30"
+                                      : "bg-[#eff6ff] text-[#3b82f6] border-[#3b82f6]/30"
                                   }`}>
                                     {p.method === "efectivo" ? "Efectivo" : "Transferencia"}
                                   </span>
                                   {p.month !== month && (
-                                    <span className="text-xs px-2 py-0.5 rounded border font-medium bg-[#fef6ec] text-[#e9730c] border-[#e9730c]/30">
+                                    <span className="text-xs px-2 py-0.5 rounded border font-medium bg-[#fef6ec] text-[#d97706] border-[#d97706]/30">
                                       cubre {formatMonthLabel(p.month)}
                                     </span>
                                   )}
@@ -355,13 +356,17 @@ export default function ResumenClient({
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
-                              {p.method === "efectivo" && (
-                                <a href={`/api/receipts/${p.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
-                                  className="text-lg" style={{ color: "var(--fiori-warning)" }} title="Ver comprobante">🧾</a>
-                              )}
+                              <span onClick={(e) => e.stopPropagation()}>
+                                <GenerateReceiptButton
+                                  paymentId={p.id}
+                                  defaultName={unit.owner_name}
+                                  existingPayerName={p.payer_name}
+                                />
+                              </span>
                               {p.method !== "efectivo" && p.receipt_url && (
                                 <a href={p.receipt_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}
-                                  className="text-lg" style={{ color: "var(--fiori-blue)" }} title="Ver comprobante">📎</a>
+                                  className="text-xs font-semibold px-2.5 py-1.5 rounded border"
+                                  style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#eff6ff" }} title="Ver comprobante transferencia">📎</a>
                               )}
                               {canEdit && (
                                 <button
@@ -403,11 +408,11 @@ export default function ResumenClient({
                 {feeAmount > 0 ? formatCurrency(units.length * feeAmount) : "—"}
               </span>
               <span className="hidden sm:block text-sm text-right font-bold rounded px-1"
-                style={{ color: "var(--fiori-success)", background: "#f1fdf6" }}>
+                style={{ color: "var(--fiori-success)", background: "#f0fdf4" }}>
                 {formatCurrency(cashIn)}
               </span>
               <span className="hidden sm:block text-sm text-right font-bold rounded px-1"
-                style={{ color: "var(--fiori-blue)", background: "#e8f2ff" }}>
+                style={{ color: "var(--fiori-blue)", background: "#eff6ff" }}>
                 {formatCurrency(transferIn)}
               </span>
               <span className="hidden sm:block" />
@@ -459,7 +464,7 @@ export default function ResumenClient({
             ) : (
               <>
                 {expenses.map((exp, idx) => {
-                  const rowBg = idx % 2 === 0 ? "#ffffff" : "#fafafa";
+                  const rowBg = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
                   return (
                     <div key={exp.id} className="border-b last:border-b-0" style={{ borderColor: "var(--fiori-border)", background: rowBg }}>
                       {/* Mobile */}
@@ -477,7 +482,7 @@ export default function ResumenClient({
                           {exp.receipt_url && (
                             <a href={exp.receipt_url} target="_blank" rel="noreferrer"
                               className="text-xs font-semibold px-2.5 py-1.5 rounded border"
-                              style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
+                              style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#eff6ff" }}>
                               📎
                             </a>
                           )}
@@ -508,14 +513,14 @@ export default function ResumenClient({
                           <span className="text-sm text-right font-semibold rounded px-1"
                             style={{
                               color: exp.method === "efectivo" ? "var(--fiori-text)" : "var(--fiori-border)",
-                              background: exp.method === "efectivo" ? "#f5f6f7" : "transparent",
+                              background: exp.method === "efectivo" ? "#f8fafc" : "transparent",
                             }}>
                             {exp.method === "efectivo" ? formatCurrency(exp.amount) : "—"}
                           </span>
                           <span className="text-sm text-right font-semibold rounded px-1"
                             style={{
                               color: exp.method !== "efectivo" ? "var(--fiori-error)" : "var(--fiori-border)",
-                              background: exp.method !== "efectivo" ? "#fdf2f2" : "transparent",
+                              background: exp.method !== "efectivo" ? "#fef2f2" : "transparent",
                             }}>
                             {exp.method !== "efectivo" ? formatCurrency(exp.amount) : "—"}
                           </span>
@@ -524,13 +529,13 @@ export default function ResumenClient({
                           {exp.receipt_url && (
                             <a href={exp.receipt_url} target="_blank" rel="noreferrer"
                               className="text-xs font-semibold px-2.5 py-1.5 rounded border"
-                              style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
+                              style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#eff6ff" }}>
                               📎 Adjunto
                             </a>
                           )}
                           {canEdit && (
                             <button type="button" onClick={() => setEditExpense(exp)}
-                              className="text-xs px-3 py-1.5 rounded border transition-colors hover:bg-[#f5f6f7]"
+                              className="text-xs px-3 py-1.5 rounded border transition-colors hover:bg-[#f8fafc]"
                               style={{ color: "var(--fiori-text-muted)", borderColor: "var(--fiori-border)" }}>
                               Editar
                             </button>
@@ -547,11 +552,11 @@ export default function ResumenClient({
                     <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>Total</span>
                     <span />
                     <span className="text-sm text-right font-bold rounded px-1"
-                      style={{ color: cashExpenses > 0 ? "var(--fiori-text)" : "var(--fiori-border)", background: cashExpenses > 0 ? "#f5f6f7" : "transparent" }}>
+                      style={{ color: cashExpenses > 0 ? "var(--fiori-text)" : "var(--fiori-border)", background: cashExpenses > 0 ? "#f8fafc" : "transparent" }}>
                       {cashExpenses > 0 ? formatCurrency(cashExpenses) : "—"}
                     </span>
                     <span className="text-sm text-right font-bold rounded px-1"
-                      style={{ color: transferExpenses > 0 ? "var(--fiori-error)" : "var(--fiori-border)", background: transferExpenses > 0 ? "#fdf2f2" : "transparent" }}>
+                      style={{ color: transferExpenses > 0 ? "var(--fiori-error)" : "var(--fiori-border)", background: transferExpenses > 0 ? "#fef2f2" : "transparent" }}>
                       {transferExpenses > 0 ? formatCurrency(transferExpenses) : "—"}
                     </span>
                   </div>
@@ -603,7 +608,7 @@ export default function ResumenClient({
 
             {/* Closing row */}
             <div className="grid grid-cols-[3fr_1.5fr_1.5fr_1.5fr] gap-x-3 px-5 py-4 border-t-2"
-              style={{ background: "#f1fdf6", borderColor: "var(--fiori-success)" }}>
+              style={{ background: "#f0fdf4", borderColor: "var(--fiori-success)" }}>
               <div>
                 <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>= Saldo {closingDateLabel}</span>
                 {isClosed && (
@@ -742,7 +747,7 @@ function InteresesBalanceRow({
         <input
           type="number" min="0" step="0.01" autoFocus
           value={value} onChange={e => setValue(e.target.value)}
-          className="text-sm text-right border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0070f2] w-full"
+          className="text-sm text-right border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#3b82f6] w-full"
           style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }}
         />
         <div className="flex gap-1.5 justify-end">
@@ -774,7 +779,7 @@ function InteresesBalanceRow({
         {canEdit && (
           <button onClick={() => { setValue(String(bankInterest)); setEditing(true); }}
             className="text-xs px-2 py-0.5 rounded border transition-colors"
-            style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}>
+            style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#eff6ff" }}>
             {bankInterest > 0 ? "Editar" : "+ Agregar"}
           </button>
         )}
@@ -880,7 +885,7 @@ function EditPaymentForm({
         <p className="text-sm" style={{ color: "var(--fiori-text)" }}>
           ¿Eliminar pago de <strong>{formatCurrency(payment.amount)}</strong> ({payment.method}) del {formatDate(payment.date)}?
         </p>
-        {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
+        {error && <p className="text-sm bg-[#fef2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
         <div className="flex gap-2 justify-end">
           <button onClick={() => setConfirmDelete(false)}
             className="px-3 py-2 text-sm border rounded"
@@ -902,7 +907,7 @@ function EditPaymentForm({
       <div>
         <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Monto por mes *</label>
         <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
-          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
           style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
         {selectedMonths.size > 1 && amount && (
           <p className="text-xs mt-1" style={{ color: "var(--fiori-blue)" }}>
@@ -921,11 +926,11 @@ function EditPaymentForm({
             return (
               <label key={m}
                 className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors border-b last:border-b-0 ${
-                  checked ? "bg-[#e8f2ff]" : idx % 2 === 0 ? "bg-white" : "bg-[#fafafa]"
-                } hover:bg-[#e8f2ff]`}
+                  checked ? "bg-[#eff6ff]" : idx % 2 === 0 ? "bg-white" : "bg-[#f8fafc]"
+                } hover:bg-[#eff6ff]`}
                 style={{ borderColor: "var(--fiori-border)" }}>
                 <input type="checkbox" checked={checked} onChange={() => toggleMonth(m)}
-                  className="w-4 h-4 rounded accent-[#0070f2]" />
+                  className="w-4 h-4 rounded accent-[#3b82f6]" />
                 <span className="text-sm" style={{ color: checked ? "var(--fiori-blue)" : "var(--fiori-text)", fontWeight: checked ? 600 : 400 }}>
                   {formatMonthLabel(m)}
                 </span>
@@ -939,7 +944,7 @@ function EditPaymentForm({
         <div className="flex gap-3">
           {(["efectivo", "transferencia"] as const).map(m => (
             <label key={m} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded border-2 cursor-pointer transition-colors ${
-              method === m ? "border-[#0070f2] bg-[#e8f2ff]" : "border-[#e5e5e5] hover:border-[#c0c0c0]"
+              method === m ? "border-[#3b82f6] bg-[#eff6ff]" : "border-[#e5e5e5] hover:border-[#c0c0c0]"
             }`} style={{ color: method === m ? "var(--fiori-blue)" : "var(--fiori-text-muted)" }}>
               <input type="radio" name="editMethod" value={m} checked={method === m} onChange={() => setMethod(m)} className="sr-only" />
               <span>{m === "efectivo" ? "💵 Efectivo" : "🏦 Transferencia"}</span>
@@ -951,20 +956,20 @@ function EditPaymentForm({
         <div>
           <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Fecha</label>
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
             style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Notas</label>
           <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Opcional"
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
             style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
         </div>
       </div>
-      {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
+      {error && <p className="text-sm bg-[#fef2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
       <div className="flex items-center justify-between pt-1">
         <button type="button" onClick={() => setConfirmDelete(true)}
-          className="text-sm px-2 py-1 rounded transition-colors hover:bg-[#fdf2f2]"
+          className="text-sm px-2 py-1 rounded transition-colors hover:bg-[#fef2f2]"
           style={{ color: "var(--fiori-error)" }}>
           Eliminar pago
         </button>
@@ -1083,7 +1088,7 @@ function EditExpenseForm({
         <p className="text-sm" style={{ color: "var(--fiori-text)" }}>
           ¿Eliminar <strong>{expense.category}</strong> ({formatCurrency(expense.amount)}) del {formatDate(expense.date)}?
         </p>
-        {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
+        {error && <p className="text-sm bg-[#fef2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
         <div className="flex gap-2 justify-end">
           <button onClick={() => setConfirmDelete(false)}
             className="px-3 py-2 text-sm border rounded"
@@ -1139,7 +1144,7 @@ function EditExpenseForm({
           </div>
         )}
 
-        {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
+        {error && <p className="text-sm bg-[#fef2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
         <div className="flex gap-2 justify-end">
           <button type="button" onClick={() => setConfirming(false)}
             className="px-3 py-2 text-sm border rounded"
@@ -1163,20 +1168,20 @@ function EditExpenseForm({
         <div>
           <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Monto *</label>
           <input type="number" required min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
             style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Fecha *</label>
           <input type="date" required value={date} onChange={e => setDate(e.target.value)}
-            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+            className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
             style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
         </div>
       </div>
       <div>
         <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Categoría *</label>
         <select required value={category} onChange={e => setCategory(e.target.value)}
-          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
           style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }}>
           <option value="">Seleccioná una categoría</option>
           {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -1190,7 +1195,7 @@ function EditExpenseForm({
         <div className="flex gap-3">
           {(["efectivo", "transferencia"] as const).map(m => (
             <label key={m} className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded border-2 cursor-pointer transition-colors ${
-              method === m ? "border-[#0070f2] bg-[#e8f2ff]" : "border-[#e5e5e5] hover:border-[#c0c0c0]"
+              method === m ? "border-[#3b82f6] bg-[#eff6ff]" : "border-[#e5e5e5] hover:border-[#c0c0c0]"
             }`} style={{ color: method === m ? "var(--fiori-blue)" : "var(--fiori-text-muted)" }}>
               <input type="radio" name="editExpMethod" value={m} checked={method === m} onChange={() => setMethod(m)} className="sr-only" />
               <span>{m === "efectivo" ? "💵 Efectivo" : "🏦 Transferencia"}</span>
@@ -1203,7 +1208,7 @@ function EditExpenseForm({
       <div>
         <label className="block text-sm font-medium mb-1" style={{ color: "var(--fiori-text)" }}>Notas <span className="font-normal" style={{ color: "var(--fiori-text-muted)" }}>(opcional)</span></label>
         <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Ej: Factura 0001-00123456, pago parcial, etc."
-          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f2]"
+          className="w-full px-3 py-2 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-[#3b82f6]"
           style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }} />
       </div>
 
@@ -1238,7 +1243,7 @@ function EditExpenseForm({
         )}
         {receiptFile ? (
           <div className="flex items-center gap-2 px-3 py-2 rounded border"
-            style={{ borderColor: "var(--fiori-success)", background: "#f1fdf6" }}>
+            style={{ borderColor: "var(--fiori-success)", background: "#f0fdf4" }}>
             <span className="text-sm flex-1 truncate" style={{ color: "var(--fiori-success)" }}>📎 {receiptFile.name}</span>
             <button type="button" onClick={() => setReceiptFile(null)}
               className="text-xs px-2 py-1 rounded border shrink-0"
@@ -1249,14 +1254,14 @@ function EditExpenseForm({
         ) : (
           <input type="file" accept="image/*,.pdf"
             onChange={e => { setReceiptFile(e.target.files?.[0] ?? null); setRemoveReceipt(false); }}
-            className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-[#e8f2ff] file:text-[#0070f2] hover:file:bg-[#d0e8ff]" />
+            className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-[#eff6ff] file:text-[#3b82f6] hover:file:bg-[#d0e8ff]" />
         )}
       </div>
 
-      {error && <p className="text-sm bg-[#fdf2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
+      {error && <p className="text-sm bg-[#fef2f2] px-3 py-2 rounded" style={{ color: "var(--fiori-error)" }}>{error}</p>}
       <div className="flex items-center justify-between pt-1">
         <button type="button" onClick={() => setConfirmDelete(true)}
-          className="text-sm px-2 py-1 rounded transition-colors hover:bg-[#fdf2f2]"
+          className="text-sm px-2 py-1 rounded transition-colors hover:bg-[#fef2f2]"
           style={{ color: "var(--fiori-error)" }}>
           Eliminar gasto
         </button>
@@ -1361,7 +1366,7 @@ function CloseMonthPanel({
   if (status === "done") {
     return (
       <div className="border rounded px-4 py-3 flex items-center gap-3"
-        style={{ background: "#f1fdf6", borderColor: "var(--fiori-success)" }}>
+        style={{ background: "#f0fdf4", borderColor: "var(--fiori-success)" }}>
         <span className="text-lg" style={{ color: "var(--fiori-success)" }}>✓</span>
         <p className="text-sm font-semibold" style={{ color: "var(--fiori-success)" }}>
           {formatMonthLabel(month)} cerrado · Reporte generado y publicado en Documentos
@@ -1387,7 +1392,7 @@ function CloseMonthPanel({
   return (
     <div className="rounded border overflow-hidden" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
       <div className="px-5 py-4 border-b flex items-center justify-between"
-        style={{ background: "#f1fdf6", borderColor: "var(--fiori-success)" }}>
+        style={{ background: "#f0fdf4", borderColor: "var(--fiori-success)" }}>
         <div className="flex items-center gap-2">
           <span className="text-lg">🔒</span>
           <h3 className="text-base font-bold" style={{ color: "var(--fiori-text)" }}>Cerrar {formatMonthLabel(month)}</h3>
@@ -1430,14 +1435,14 @@ function CloseMonthPanel({
               <span className="font-semibold" style={{ color: "var(--fiori-text)" }}>{formatCurrency(bankClosing)}</span>
             </div>
             <div className="flex justify-between px-4 py-2.5 text-sm rounded-b"
-              style={{ background: "#f1fdf6" }}>
+              style={{ background: "#f0fdf4" }}>
               <span className="font-semibold" style={{ color: "var(--fiori-success)" }}>Total a trasladar</span>
               <span className="font-bold" style={{ color: "var(--fiori-success)" }}>{formatCurrency(cashClosing + bankClosing)}</span>
             </div>
           </div>
         )}
         {status === "error" && (
-          <p className="text-xs px-3 py-2 rounded" style={{ color: "var(--fiori-error)", background: "#fdf2f2" }}>{errorMsg}</p>
+          <p className="text-xs px-3 py-2 rounded" style={{ color: "var(--fiori-error)", background: "#fef2f2" }}>{errorMsg}</p>
         )}
         <div className="flex gap-3 pt-1">
           <button

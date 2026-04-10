@@ -1,54 +1,22 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* ── 72 Brand (SAP) ─────────────────────────────────────────────────────────── */
-@font-face {
-  font-family: "72";
-  src: url("/fonts/72-Light.woff") format("woff");
-  font-weight: 300;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "72";
-  src: url("/fonts/72-Regular.woff") format("woff");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "72";
-  src: url("/fonts/72-Semibold.woff") format("woff");
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: "72";
-  src: url("/fonts/72-Bold.woff") format("woff");
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-/* ── SAP Fiori design tokens ─────────────────────────────────────────────────── */
+/* ── Warm Residential design tokens ──────────────────────────────────────────── */
 :root {
-  --fiori-shell:        #354a5e;
-  --fiori-shell-hover:  #29394a;
-  --fiori-page-bg:      #f5f6f7;
+  --fiori-shell:        #334155;
+  --fiori-shell-hover:  #1e293b;
+  --fiori-page-bg:      #f8fafc;
   --fiori-card-bg:      #ffffff;
-  --fiori-border:       #e5e5e5;
-  --fiori-border-strong:#bfbfbf;
-  --fiori-blue:         #0070f2;
-  --fiori-blue-hover:   #0064d9;
-  --fiori-text:         #32363a;
-  --fiori-text-muted:   #6a6d70;
-  --fiori-success:      #107e3e;
-  --fiori-warning:      #e9730c;
-  --fiori-error:        #bb0000;
-  --fiori-table-header: #f2f2f2;
+  --fiori-border:       #e2e8f0;
+  --fiori-border-strong:#94a3b8;
+  --fiori-blue:         #3b82f6;
+  --fiori-blue-hover:   #2563eb;
+  --fiori-text:         #0f172a;
+  --fiori-text-muted:   #64748b;
+  --fiori-success:      #16a34a;
+  --fiori-warning:      #d97706;
+  --fiori-error:        #dc2626;
+  --fiori-table-header: #f1f5f9;
   --background: var(--fiori-page-bg);
   --foreground: var(--fiori-text);
 }
@@ -56,11 +24,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "72", system-ui, sans-serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
 }
 
 body {
   background: var(--fiori-page-bg);
   color: var(--fiori-text);
-  font-family: "72", system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }

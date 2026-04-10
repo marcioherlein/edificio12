@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/server";
 import { formatCurrency, formatMonthLabel } from "@/lib/utils";
 import Link from "next/link";
+import GenerateReceiptButton from "@/components/admin/GenerateReceiptButton";
 
 function formatDate(dateStr: string): string {
   const [y, m, d] = dateStr.split("-");
@@ -20,7 +21,7 @@ export default async function UnitHistoryPage({
   const [unitRes, paymentsRes] = await Promise.all([
     svc.from("units").select("name, owner_name").eq("id", unitId).single(),
     svc.from("payments")
-      .select("id, amount, method, month, date, notes, receipt_url")
+      .select("id, amount, method, month, date, notes, receipt_url, payer_name")
       .eq("unit_id", unitId)
       .order("date", { ascending: false }),
   ]);
@@ -95,8 +96,8 @@ export default async function UnitHistoryPage({
                             <span className="text-sm" style={{ color: "var(--fiori-text-muted)" }}>{formatDate(p.date)}</span>
                             <span className={`text-xs px-2 py-0.5 rounded border font-medium ${
                               p.method === "efectivo"
-                                ? "bg-[#f1fdf6] text-[#107e3e] border-[#107e3e]/30"
-                                : "bg-[#e8f2ff] text-[#0070f2] border-[#0070f2]/30"
+                                ? "bg-[#f0fdf4] text-[#16a34a] border-[#16a34a]/30"
+                                : "bg-[#eff6ff] text-[#3b82f6] border-[#3b82f6]/30"
                             }`}>
                               {p.method === "efectivo" ? "Efectivo" : "Transferencia"}
                             </span>
@@ -109,26 +110,19 @@ export default async function UnitHistoryPage({
 
                       {/* Attachment links */}
                       <div className="flex items-center gap-2 ml-3 shrink-0">
-                        {p.method === "efectivo" && (
-                          <a
-                            href={`/api/receipts/${p.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            title="Ver comprobante"
-                            className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded border transition-colors"
-                            style={{ color: "var(--fiori-warning)", borderColor: "var(--fiori-warning)", background: "#fef6ec" }}
-                          >
-                            🧾 Recibo
-                          </a>
-                        )}
-                        {p.method !== "efectivo" && p.receipt_url && (
+                        <GenerateReceiptButton
+                          paymentId={p.id}
+                          defaultName={unit?.owner_name ?? ""}
+                          existingPayerName={(p as any).payer_name}
+                        />
+                        {p.receipt_url && (
                           <a
                             href={p.receipt_url}
                             target="_blank"
                             rel="noreferrer"
-                            title="Ver comprobante"
+                            title="Ver adjunto"
                             className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded border transition-colors"
-                            style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#e8f2ff" }}
+                            style={{ color: "var(--fiori-blue)", borderColor: "var(--fiori-blue)", background: "#eff6ff" }}
                           >
                             📎 Adjunto
                           </a>

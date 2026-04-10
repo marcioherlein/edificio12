@@ -62,12 +62,12 @@ export default async function ResumenPage({
         .eq("month", month).single(),
       svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
       // Payments RECEIVED this calendar month (by date) — used for cash balance AND as frozen ledger for closed months
-      svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url")
+      svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url, payer_name")
         .gte("date", `${month}-01`)
         .lt("date", nextMonthStr(month))
         .order("date"),
       // Payments ATTRIBUTED to this month (by month field) — for per-unit table & history
-      svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url")
+      svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url, payer_name")
         .eq("month", month)
         .order("date"),
       svc.from("expenses")
