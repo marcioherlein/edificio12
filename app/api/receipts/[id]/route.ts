@@ -27,6 +27,12 @@ export async function GET(
   const receiptId   = payment.id as string;
   const shortId     = receiptId.slice(0, 8).toUpperCase();
 
+  const [py, pm, pd] = (payment.date as string).split("-").map(Number);
+  const paymentDate = new Date(py, pm - 1, pd);
+  const fullDateLabel = paymentDate.toLocaleDateString("es-AR", {
+    weekday: "long", day: "2-digit", month: "long", year: "numeric",
+  });
+
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -237,7 +243,12 @@ export async function GET(
       <!-- Header -->
       <div class="header">
         <div class="header-top">
-          <div class="building-name">Edificio 12</div>
+          <div>
+            <div class="building-name">Edificio 12</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.60);margin-top:3px;">
+              Reinalda Rodríguez 4112, Ciudad Evita, Buenos Aires
+            </div>
+          </div>
           <div class="receipt-badge">✓ Pagado</div>
         </div>
         <div class="receipt-subtitle">Comprobante de recibo de pago de expensas</div>
@@ -268,7 +279,7 @@ export async function GET(
         </div>
         <div class="row">
           <span class="row-key">Fecha de pago</span>
-          <span class="row-val">${formatDate(payment.date)}</span>
+          <span class="row-val" style="text-transform:capitalize">${fullDateLabel}</span>
         </div>
         <div class="row">
           <span class="row-key">Forma de pago</span>
