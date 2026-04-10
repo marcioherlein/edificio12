@@ -1,5 +1,4 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import {
   formatCurrency, currentMonth, formatMonthLabel, getPaymentStatus,
 } from "@/lib/utils";
@@ -12,8 +11,10 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Non-admin users (guests and residents) go straight to the public Resumen portal
-  if (!user) redirect("/resumen");
+  const month = currentMonth();
+
+  // Guests and non-admin residents see the same read-only dashboard
+  if (!user) return <AdminDashboard month={month} />;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -21,16 +22,9 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
-  if (!profile) redirect("/resumen");
+  if (!profile || profile.role !== "admin") return <AdminDashboard month={month} />;
 
-  const month = currentMonth();
-
-  if (profile.role === "admin") {
-    return <AdminDashboard month={month} />;
-  }
-
-  // Logged-in residents also see the public portal
-  redirect("/resumen");
+  return <AdminDashboard month={month} />;
 }
 
 // ── Admin Dashboard ──────────────────────────────────────────────────────────
