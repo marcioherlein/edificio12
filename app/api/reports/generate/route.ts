@@ -2,15 +2,22 @@ import { createServiceClient, createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { formatCurrency, formatDate, formatMonthLabel } from "@/lib/utils";
 
-// Called by the "♻️ Regenerar" button in the report viewer (admin session).
-// Identical logic to /api/reports/finalize — overwrites monthly_reports and
-// upserts the documents entry so the Docs tab always shows the latest version.
+// Called by the "♻️ Regenerar" button in the report viewer (admin session),
+// OR internally via Authorization: Bearer CRON_SECRET (e.g. after data corrections).
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "admin") return NextResponse.json({ error: "Solo el administrador." }, { status: 403 });
+  // ── Auth: admin session OR cron secret ──────────────────────────────────
+  const authHeader  = request.headers.get("authorization");
+  const cronSecret  = process.env.CRON_SECRET;
+  const isCronCall  = cronSecret && authHeader === `Bearer ${cronSecret}`;
+
+  if (!isCronCall) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    if (profile?.role !== "admin") return NextResponse.json({ error: "Solo el administrador." }, { status: 403 });
+  }
+  // ────────────────────────────────────────────────────────────────────────
 
   const { month } = await request.json() as { month: string };
   if (!month || !/^\d{4}-\d{2}$/.test(month)) {
