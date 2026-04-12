@@ -72,7 +72,7 @@ BEGIN
 
 
   -- ── 1. Corregir apertura de caja e intereses Ualá de Marzo ──────────────
-  SELECT bank_opening INTO v_march_bank_opening
+  SELECT COALESCE(MAX(bank_opening), 0) INTO v_march_bank_opening
   FROM account_balances
   WHERE month = v_march;
 
@@ -164,11 +164,12 @@ BEGIN
 
 
   -- ── 6. Recalcular saldo adeudado de Fabiana en Abril ────────────────────
-  SELECT COALESCE(amount, 0) INTO v_march_fee
+  -- Usar MAX() en lugar de valor directo para evitar NULL cuando no hay fila
+  SELECT COALESCE(MAX(amount), 0) INTO v_march_fee
   FROM monthly_fees
   WHERE month = v_march;
 
-  SELECT COALESCE(opening_balance, 0) INTO v_fabiana_march_open
+  SELECT COALESCE(MAX(opening_balance), 0) INTO v_fabiana_march_open
   FROM unit_balances
   WHERE unit_id = fabiana_unit_id
     AND month = v_march;
