@@ -32,7 +32,7 @@ export default async function DashboardPage() {
 async function AdminDashboard({ month }: { month: string }) {
   const svc = createServiceClient();
 
-  const [allBalancesRes, allPaymentsRes, allExpensesRes, feesRes, announcementsRes] = await Promise.all([
+  const [allBalancesRes, allPaymentsRes, allExpensesRes, feesRes, announcementsRes, monthPaymentsRes, unitsRes] = await Promise.all([
     svc.from("account_balances")
       .select("month, cash_opening, bank_opening, bank_interest")
       .order("month"),
@@ -40,6 +40,8 @@ async function AdminDashboard({ month }: { month: string }) {
     svc.from("expenses").select("date, amount, method"),
     svc.from("monthly_fees").select("amount").eq("month", month).single(),
     svc.from("announcements").select("title, content, date").order("date", { ascending: false }).limit(5),
+    svc.from("payments").select("unit_id, amount").eq("month", month),
+    svc.from("units").select("id"),
   ]);
 
   const allBalances = allBalancesRes.data ?? [];
@@ -92,6 +94,18 @@ async function AdminDashboard({ month }: { month: string }) {
   const feeAmount = feesRes.data?.amount ?? 0;
   const announcements = announcementsRes.data ?? [];
 
+  // ── Cobro del mes ────────────────────────────────────────
+  const totalUnits = (unitsRes.data ?? []).length;
+  const paidByUnit: Record<string, number> = {};
+  for (const p of monthPaymentsRes.data ?? []) {
+    paidByUnit[p.unit_id] = (paidByUnit[p.unit_id] ?? 0) + Number(p.amount);
+  }
+  const unitsPaid    = Object.values(paidByUnit).filter(v => feeAmount > 0 ? v >= feeAmount : v > 0).length;
+  const unitsPartial = Object.values(paidByUnit).filter(v => feeAmount > 0 && v > 0 && v < feeAmount).length;
+  const unitsPending = totalUnits - unitsPaid - unitsPartial;
+  const pctPaid      = totalUnits > 0 ? (unitsPaid / totalUnits) * 100 : 0;
+  const pctPartial   = totalUnits > 0 ? (unitsPartial / totalUnits) * 100 : 0;
+
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
       <div className="pt-2">
@@ -116,6 +130,42 @@ async function AdminDashboard({ month }: { month: string }) {
           </p>
         </Card>
       </div>
+
+      {/* Cobro del mes */}
+      <Card>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cobro del mes</p>
+          <span className="text-sm font-bold text-gray-800">{unitsPaid}/{totalUnits} pagaron</span>
+        </div>
+        {/* Progress bar */}
+        <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden flex">
+          <div
+            className="h-full bg-green-500 transition-all"
+            style={{ width: `${pctPaid}%` }}
+          />
+          <div
+            className="h-full bg-amber-400 transition-all"
+            style={{ width: `${pctPartial}%` }}
+          />
+        </div>
+        {/* Legend */}
+        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />
+            Pagado ({unitsPaid})
+          </span>
+          {unitsPartial > 0 && (
+            <span className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block" />
+              Parcial ({unitsPartial})
+            </span>
+          )}
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-gray-200 inline-block" />
+            Pendiente ({unitsPending})
+          </span>
+        </div>
+      </Card>
 
       {/* Total fund */}
       <Card className="bg-gradient-to-br from-gray-800 to-gray-900 text-white">
