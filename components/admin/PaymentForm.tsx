@@ -12,7 +12,6 @@ function buildMonthOptions(): string[] {
     const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     if (!HIDDEN_MONTHS.has(m)) options.push(m);
   }
-  }
   return options;
 }
 
