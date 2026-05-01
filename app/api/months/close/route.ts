@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   const [accBalRes, paymentsByDateRes, paymentsByMonthRes, expensesRes, unitBalancesRes, feeRes, unitsRes] =
     await Promise.all([
       svc.from("account_balances")
-        .select("cash_opening, bank_opening, bank_interest")
+        .select("cash_opening, bank_opening, bank_interest, closed")
         .eq("month", sourceMonth).single(),
       // Payments RECEIVED in sourceMonth (by date) — for cash/bank account closing
       svc.from("payments")
@@ -74,6 +74,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: `No hay saldo de apertura configurado para ${sourceMonth}. No se puede calcular el cierre.` },
       { status: 422 }
+    );
+  }
+
+  if (accBalRes.data.closed) {
+    return NextResponse.json(
+      { error: `${sourceMonth} ya está cerrado.` },
+      { status: 409 }
     );
   }
 

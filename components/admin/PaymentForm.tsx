@@ -2,14 +2,16 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Button from "@/components/ui/Button";
-import { currentMonth, formatMonthLabel, formatCurrency } from "@/lib/utils";
+import { currentMonth, formatMonthLabel, formatCurrency, prevMonth, HIDDEN_MONTHS } from "@/lib/utils";
 
 function buildMonthOptions(): string[] {
   const options: string[] = [];
   const start = new Date(2025, 11, 1); // December 2025
   const end = new Date(2026, 11, 1);   // December 2026
   for (let d = new Date(start); d <= end; d.setMonth(d.getMonth() + 1)) {
-    options.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!HIDDEN_MONTHS.has(m)) options.push(m);
+  }
   }
   return options;
 }
@@ -70,6 +72,37 @@ export default function PaymentForm({ units, onSuccess, onCancel, defaultUnitId 
     setError("");
     setLoading(true);
 
+    const months = Array.from(selectedMonths).sort();
+
+    // Block insert if any selected month's previous month is not closed,
+    // or if the target month itself is already closed
+    const prevMonths = [...new Set(months.map(prevMonth))];
+    const { data: balanceRows } = await supabase
+      .from("account_balances")
+      .select("month, closed")
+      .in("month", [...months, ...prevMonths]);
+    const blockedPrev = months.filter(m => {
+      const row = balanceRows?.find(r => r.month === prevMonth(m));
+      return row && !row.closed;
+    });
+    const blockedClosed = months.filter(m =>
+      balanceRows?.find(r => r.month === m)?.closed === true
+    );
+    if (blockedClosed.length > 0) {
+      const labels = blockedClosed.map(m => formatMonthLabel(m)).join(", ");
+      setError(`No se puede registrar: ${labels} ya está cerrado.`);
+      setLoading(false);
+      setConfirming(false);
+      return;
+    }
+    if (blockedPrev.length > 0) {
+      const labels = blockedPrev.map(m => formatMonthLabel(m)).join(", ");
+      setError(`No se puede registrar: el mes anterior a ${labels} no está cerrado.`);
+      setLoading(false);
+      setConfirming(false);
+      return;
+    }
+
     let receipt_url: string | null = null;
 
     if (method === "transferencia" && receiptFile) {
@@ -88,7 +121,6 @@ export default function PaymentForm({ units, onSuccess, onCancel, defaultUnitId 
       receipt_url = publicUrl;
     }
 
-    const months = Array.from(selectedMonths).sort();
     const rows = months.map(m => ({
       unit_id: unitId,
       amount: parseFloat(amount),

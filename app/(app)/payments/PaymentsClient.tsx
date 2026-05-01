@@ -159,7 +159,7 @@ export default function PaymentsClient({
         {/* Desktop header */}
         <div className="hidden sm:grid grid-cols-[2fr_2fr_1fr_1fr_1fr_1fr_1.5fr_1.2fr] gap-x-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400 border-b border-gray-100">
           <span>Depto</span>
-          <span>Propietario</span>
+          <span>Usuario</span>
           <span className="text-right">Anterior</span>
           <span className="text-right">Expensa</span>
           <span className="text-right">Efectivo</span>

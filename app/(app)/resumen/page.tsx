@@ -1,5 +1,5 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
-import { currentMonth, nextMonth } from "@/lib/utils";
+import { currentMonth, nextMonth, HIDDEN_MONTHS } from "@/lib/utils";
 import ResumenClient from "./ResumenClient";
 
 function nextMonthStr(month: string) {
@@ -58,7 +58,7 @@ export default async function ResumenPage({
       svc.from("units").select("id, name, owner_name"),
       svc.from("monthly_fees").select("amount").eq("month", month).single(),
       svc.from("account_balances")
-        .select("cash_opening, bank_opening, bank_interest")
+        .select("cash_opening, bank_opening, bank_interest, closed")
         .eq("month", month).single(),
       svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
       // Payments RECEIVED this calendar month (by date) — used for cash balance AND as frozen ledger for closed months
@@ -84,7 +84,7 @@ export default async function ResumenPage({
     openingByUnit[b.unit_id] = Number(b.opening_balance);
   }
 
-  const isClosed = !isMonthOpen(month);
+  const isClosed = !isMonthOpen(month) || (accountBalRes.data?.closed ?? false);
 
   // Always use DATE-bounded payments for per-unit display.
   // A payment belongs to the month it was physically received, regardless of which
@@ -128,7 +128,7 @@ export default async function ResumenPage({
   const monthSet = new Set((monthsRes.data ?? []).map((r: any) => r.month as string));
   monthSet.add(currentMonth());
   if (isAdmin) monthSet.add(nextMonth());
-  const availableMonths = Array.from(monthSet).sort().reverse();
+  const availableMonths = Array.from(monthSet).filter(m => !HIDDEN_MONTHS.has(m)).sort().reverse();
 
   const ab = accountBalRes.data;
   return (

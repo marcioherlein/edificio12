@@ -1,6 +1,6 @@
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { currentMonth, nextMonth } from "@/lib/utils";
+import { currentMonth, nextMonth, HIDDEN_MONTHS } from "@/lib/utils";
 import PaymentsClient from "./PaymentsClient";
 
 export default async function PaymentsPage({
@@ -71,7 +71,7 @@ export default async function PaymentsPage({
   );
   monthSet.add(currentMonth());
   monthSet.add(nextMonth());
-  const availableMonths = Array.from(monthSet).sort().reverse();
+  const availableMonths = Array.from(monthSet).filter(m => !HIDDEN_MONTHS.has(m)).sort().reverse();
 
   const payments = (paymentsRes.data ?? []).map((p: any) => ({
     ...p,

@@ -1,11 +1,11 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { formatCurrency, formatDate, formatMonthLabel, currentMonth as getCurrentMonth } from "@/lib/utils";
+import { formatCurrency, formatDate, formatMonthLabel, currentMonth as getCurrentMonth, HIDDEN_MONTHS } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
 import PaymentForm from "@/components/admin/PaymentForm";
 import ExpenseForm from "@/components/admin/ExpenseForm";
 import GenerateReceiptButton from "@/components/admin/GenerateReceiptButton";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Unit { id: string; name: string; owner_name: string; }
@@ -65,6 +65,10 @@ export default function ResumenClient({
   const [payingUnit, setPayingUnit] = useState<Unit | null>(null);
   const canEdit = isAdmin && isMonthOpen(month) && !isClosed;
   const [bankInterestState, setBankInterestState] = useState(accountBalance?.bank_interest ?? 0);
+
+  useEffect(() => {
+    setBankInterestState(accountBalance?.bank_interest ?? 0);
+  }, [month]);
 
   const paymentsByUnit: Record<string, Payment[]> = {};
   for (const p of payments) {
@@ -152,6 +156,13 @@ export default function ResumenClient({
           </div>
         )}
         {isAdmin && canEdit && (
+          <SetFeePanel
+            month={month}
+            feeAmount={feeAmount}
+            onSaved={() => router.refresh()}
+          />
+        )}
+        {isAdmin && canEdit && (
           <CloseMonthPanel
             month={month}
             accountBalance={accountBalance}
@@ -192,7 +203,7 @@ export default function ResumenClient({
               {/* Column labels */}
               <div className={`grid ${ING_COLS} gap-x-3 px-5 py-2`}>
                 <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Depto</span>
-                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Propietario</span>
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Usuario</span>
                 <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Deuda Anterior</span>
                 <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Expensa mensual</span>
                 <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-success)" }}>💵 Efectivo</span>
@@ -806,7 +817,8 @@ function buildMonthOptions(): string[] {
   const start = new Date(2025, 11, 1); // December 2025
   const end = new Date(2026, 11, 1);   // December 2026
   for (let d = new Date(end); d >= start; d.setMonth(d.getMonth() - 1)) {
-    options.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (!HIDDEN_MONTHS.has(m)) options.push(m);
   }
   return options;
 }
@@ -1480,6 +1492,110 @@ function CloseMonthPanel({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Set Fee Panel ──────────────────────────────────────────────────────────────
+
+function SetFeePanel({ month, feeAmount, onSaved }: {
+  month: string;
+  feeAmount: number;
+  onSaved: () => void;
+}) {
+  const [editing, setEditing]   = useState(false);
+  const [value, setValue]       = useState(feeAmount > 0 ? String(feeAmount) : "");
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    const amount = parseFloat(value);
+    if (isNaN(amount) || amount <= 0) { setError("Monto inválido."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("/api/months/set-fee", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month, amount }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Error al guardar.");
+      setEditing(false);
+      onSaved();
+    } catch (err: any) {
+      setError(err.message);
+    }
+    setLoading(false);
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={handleSave} className="border rounded px-4 py-3 space-y-2"
+        style={{ borderColor: "var(--fiori-border)" }}>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium flex-1" style={{ color: "var(--fiori-text)" }}>
+            Expensa — {formatMonthLabel(month)}
+          </span>
+          <input
+            type="number" min="1" step="0.01" required autoFocus
+            value={value} onChange={e => setValue(e.target.value)}
+            placeholder="0.00"
+            className="w-36 text-sm text-right border rounded px-2 py-1 focus:outline-none focus:ring-2"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }}
+          />
+          <button type="button" onClick={() => { setEditing(false); setError(""); }}
+            className="text-xs px-2 py-1 border rounded"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
+            ✕
+          </button>
+          <button type="submit" disabled={loading}
+            className="text-xs px-3 py-1.5 font-semibold text-white rounded disabled:opacity-50"
+            style={{ background: "var(--fiori-success)" }}>
+            {loading ? "…" : "✓ Guardar"}
+          </button>
+        </div>
+        {error && (
+          <p className="text-xs px-3 py-2 rounded" style={{ color: "var(--fiori-error)", background: "#fef2f2" }}>
+            {error}
+          </p>
+        )}
+      </form>
+    );
+  }
+
+  if (feeAmount > 0) {
+    return (
+      <div className="border rounded px-4 py-3 flex items-center gap-3"
+        style={{ borderColor: "#86efac", background: "#f0fdf4" }}>
+        <span style={{ color: "var(--fiori-success)" }}>✓</span>
+        <span className="text-sm flex-1" style={{ color: "var(--fiori-success)" }}>
+          Expensa configurada — <strong>{formatCurrency(feeAmount)}</strong>
+        </span>
+        <button
+          onClick={() => { setValue(String(feeAmount)); setEditing(true); }}
+          className="text-xs px-2 py-1 border rounded transition-colors"
+          style={{ color: "var(--fiori-success)", borderColor: "#86efac", background: "#dcfce7" }}>
+          Editar
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="border rounded px-4 py-3 flex items-center gap-3"
+      style={{ borderColor: "#fcd34d", background: "#fffbeb" }}>
+      <span>⚠️</span>
+      <span className="text-sm flex-1 font-medium" style={{ color: "#92400e" }}>
+        Expensa de {formatMonthLabel(month)} no configurada
+      </span>
+      <button
+        onClick={() => { setValue(""); setEditing(true); }}
+        className="text-xs px-3 py-1.5 font-semibold text-white rounded transition-colors"
+        style={{ background: "#d97706" }}>
+        Configurar
+      </button>
     </div>
   );
 }

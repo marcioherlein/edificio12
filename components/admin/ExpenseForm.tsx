@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Button from "@/components/ui/Button";
-import { currentMonth, formatMonthLabel, formatCurrency } from "@/lib/utils";
+import { currentMonth, formatMonthLabel, formatCurrency, prevMonth } from "@/lib/utils";
 
 function getAllowedWindow(): { minDate: string; maxDate: string; currentMonth: string; graceMonth: string | null } {
   const now = new Date();
@@ -77,6 +77,28 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
   async function handleConfirm() {
     setError("");
     setLoading(true);
+
+    // Block insert if the expense month itself is closed, or its previous month is not closed
+    const expenseMonth = date.slice(0, 7);
+    const prev = prevMonth(expenseMonth);
+    const { data: balanceRows } = await supabase
+      .from("account_balances")
+      .select("month, closed")
+      .in("month", [expenseMonth, prev]);
+    const targetRow = balanceRows?.find(r => r.month === expenseMonth);
+    const prevRow   = balanceRows?.find(r => r.month === prev);
+    if (targetRow?.closed) {
+      setError(`No se puede registrar: ${formatMonthLabel(expenseMonth)} ya está cerrado.`);
+      setLoading(false);
+      setConfirming(false);
+      return;
+    }
+    if (prevRow && !prevRow.closed) {
+      setError(`No se puede registrar: ${formatMonthLabel(prev)} no está cerrado.`);
+      setLoading(false);
+      setConfirming(false);
+      return;
+    }
 
     let receipt_url: string | null = null;
 

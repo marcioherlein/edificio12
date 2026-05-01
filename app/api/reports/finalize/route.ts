@@ -187,7 +187,7 @@ export async function POST(request: Request) {
     <thead>
       <tr>
         <th>Depto.</th>
-        <th>Propietario / Inquilino</th>
+        <th>Usuario</th>
         <th>Anterior</th>
         <th>Expensa</th>
         <th>Efectivo</th>
