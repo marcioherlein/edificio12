@@ -52,7 +52,7 @@ export default async function ResumenPage({
   const month = params.month ?? currentMonth();
 
   const [unitsRes, feeRes, accountBalRes, unitBalancesRes,
-         paymentsByDateRes, paymentsByMonthRes,
+         paymentsByDateRes,
          expensesRes, monthsRes, categoriesRes] =
     await Promise.all([
       svc.from("units").select("id, name, owner_name"),
@@ -61,14 +61,10 @@ export default async function ResumenPage({
         .select("cash_opening, bank_opening, bank_interest, closed")
         .eq("month", month).single(),
       svc.from("unit_balances").select("unit_id, opening_balance").eq("month", month),
-      // Payments RECEIVED this calendar month (by date) — used for cash balance AND as frozen ledger for closed months
+      // Payments RECEIVED this calendar month (by date) — used for cash balance, unit saldo, and ledger
       svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url, payer_name")
         .gte("date", `${month}-01`)
         .lt("date", nextMonthStr(month))
-        .order("date"),
-      // Payments ATTRIBUTED to this month (by month field) — for per-unit table & history
-      svc.from("payments").select("id, unit_id, amount, method, month, date, notes, receipt_url, payer_name")
-        .eq("month", month)
         .order("date"),
       svc.from("expenses")
         .select("id, description, amount, method, date, category, receipt_url, notes")

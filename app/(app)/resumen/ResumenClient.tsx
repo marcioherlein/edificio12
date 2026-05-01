@@ -95,7 +95,7 @@ export default function ResumenClient({
   const totalAnterior = units.reduce((a, u) => a + (openingByUnit[u.id] ?? 0), 0);
   const totalSaldo    = units.reduce((a, u) => {
     const ant = openingByUnit[u.id] ?? 0;
-    return a + Math.max(0, ant + feeAmount - (cashByUnit[u.id] ?? 0) - (transferByUnit[u.id] ?? 0));
+    return a + ant + feeAmount - (cashByUnit[u.id] ?? 0) - (transferByUnit[u.id] ?? 0);
   }, 0);
 
   const [yr, mo] = month.split("-").map(Number);
@@ -204,7 +204,7 @@ export default function ResumenClient({
               <div className={`grid ${ING_COLS} gap-x-3 px-5 py-2`}>
                 <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Depto</span>
                 <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Usuario</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Deuda Anterior</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Saldo Anterior</span>
                 <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Expensa mensual</span>
                 <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-success)" }}>💵 Efectivo</span>
                 <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-blue)" }}>🏦 Transf.</span>
@@ -243,18 +243,21 @@ export default function ResumenClient({
                           <span className="text-xs truncate" style={{ color: "var(--fiori-text-muted)" }}>{unit.owner_name}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${isPaid
-                            ? "bg-[#f0fdf4] text-[#16a34a] border-[#16a34a]/30"
-                            : "bg-[#fef6ec] text-[#d97706] border-[#d97706]/30"}`}>
-                            {isPaid ? "Al día" : `Debe ${formatCurrency(saldo)}`}
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${
+                            saldo < 0
+                              ? "bg-[#eff6ff] text-[#3b82f6] border-[#3b82f6]/30"
+                              : isPaid
+                              ? "bg-[#f0fdf4] text-[#16a34a] border-[#16a34a]/30"
+                              : "bg-[#fef6ec] text-[#d97706] border-[#d97706]/30"}`}>
+                            {saldo < 0 ? `Crédito ${formatCurrency(-saldo)}` : isPaid ? "Al día" : `Debe ${formatCurrency(saldo)}`}
                           </span>
                           <span className="text-xs" style={{ color: "var(--fiori-text-muted)" }}>{expanded ? "▲" : "▼"}</span>
                         </div>
                       </div>
-                      {/* Line 2: deuda anterior (only if > 0) */}
-                      {anterior > 0 && (
-                        <p className="text-xs mt-1.5 font-medium" style={{ color: "var(--fiori-warning)" }}>
-                          Deuda anterior: {formatCurrency(anterior)}
+                      {/* Line 2: saldo anterior (only if non-zero) */}
+                      {anterior !== 0 && (
+                        <p className="text-xs mt-1.5 font-medium" style={{ color: anterior < 0 ? "var(--fiori-blue)" : "var(--fiori-warning)" }}>
+                          {anterior < 0 ? `Crédito anterior: ${formatCurrency(-anterior)}` : `Deuda anterior: ${formatCurrency(anterior)}`}
                         </p>
                       )}
                       {/* Line 3: payments + saldo */}
@@ -267,8 +270,8 @@ export default function ResumenClient({
                             🏦 {transfer > 0 ? formatCurrency(transfer) : "—"}
                           </span>
                         </div>
-                        <span className="text-xs font-bold" style={{ color: saldo > 0 ? "var(--fiori-warning)" : "var(--fiori-success)" }}>
-                          Saldo: {saldo > 0 ? formatCurrency(saldo) : "✓"}
+                        <span className="text-xs font-bold" style={{ color: saldo < 0 ? "var(--fiori-blue)" : saldo > 0 ? "var(--fiori-warning)" : "var(--fiori-success)" }}>
+                          Saldo: {saldo < 0 ? `Crédito ${formatCurrency(-saldo)}` : saldo > 0 ? formatCurrency(saldo) : "✓"}
                         </span>
                       </div>
                     </div>
@@ -281,8 +284,8 @@ export default function ResumenClient({
                       </div>
                       <span className="text-sm truncate" style={{ color: "var(--fiori-text-muted)" }}>{unit.owner_name}</span>
                       <span className={`text-sm text-right font-medium`}
-                        style={{ color: anterior > 0 ? "var(--fiori-warning)" : "var(--fiori-border)" }}>
-                        {anterior > 0 ? formatCurrency(anterior) : "—"}
+                        style={{ color: anterior < 0 ? "var(--fiori-blue)" : anterior > 0 ? "var(--fiori-warning)" : "var(--fiori-border)" }}>
+                        {anterior !== 0 ? formatCurrency(anterior) : "—"}
                       </span>
                       <span className="text-sm text-right" style={{ color: "var(--fiori-text-muted)" }}>
                         {feeAmount > 0 ? formatCurrency(feeAmount) : "—"}
@@ -305,8 +308,8 @@ export default function ResumenClient({
                         {lastDate ? formatDate(lastDate) : "—"}
                       </span>
                       <span className="text-sm text-right font-bold"
-                        style={{ color: saldo > 0 ? "var(--fiori-warning)" : "var(--fiori-success)" }}>
-                        {saldo > 0 ? formatCurrency(saldo) : "✓"}
+                        style={{ color: saldo < 0 ? "var(--fiori-blue)" : saldo > 0 ? "var(--fiori-warning)" : "var(--fiori-success)" }}>
+                        {saldo < 0 ? `Crédito ${formatCurrency(-saldo)}` : saldo > 0 ? formatCurrency(saldo) : "✓"}
                       </span>
                     </div>
                   </div>
@@ -414,8 +417,9 @@ export default function ResumenClient({
               {/* Desktop */}
               <span className="hidden sm:block text-sm font-bold" style={{ color: "var(--fiori-text)" }}>Total</span>
               <span className="hidden sm:block" />
-              <span className="hidden sm:block text-sm text-right font-bold" style={{ color: "var(--fiori-warning)" }}>
-                {totalAnterior > 0 ? formatCurrency(totalAnterior) : "—"}
+              <span className="hidden sm:block text-sm text-right font-bold"
+                style={{ color: totalAnterior < 0 ? "var(--fiori-blue)" : totalAnterior > 0 ? "var(--fiori-warning)" : "var(--fiori-border)" }}>
+                {totalAnterior !== 0 ? formatCurrency(totalAnterior) : "—"}
               </span>
               <span className="hidden sm:block text-sm text-right font-bold" style={{ color: "var(--fiori-text-muted)" }}>
                 {feeAmount > 0 ? formatCurrency(units.length * feeAmount) : "—"}
@@ -429,8 +433,9 @@ export default function ResumenClient({
                 {formatCurrency(transferIn)}
               </span>
               <span className="hidden sm:block" />
-              <span className="hidden sm:block text-sm text-right font-bold" style={{ color: "var(--fiori-warning)" }}>
-                {totalSaldo > 0 ? formatCurrency(totalSaldo) : "—"}
+              <span className="hidden sm:block text-sm text-right font-bold"
+                style={{ color: totalSaldo < 0 ? "var(--fiori-blue)" : totalSaldo > 0 ? "var(--fiori-warning)" : "var(--fiori-border)" }}>
+                {totalSaldo !== 0 ? formatCurrency(totalSaldo) : "—"}
               </span>
             </div>
           </div>

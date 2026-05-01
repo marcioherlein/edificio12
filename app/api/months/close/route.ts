@@ -45,20 +45,16 @@ export async function POST(request: Request) {
   const rangeEnd   = `${targetMonth}-01`; // exclusive upper bound
 
   // ── Fetch everything we need in parallel ─────────────────────────────────────
-  const [accBalRes, paymentsByDateRes, paymentsByMonthRes, expensesRes, unitBalancesRes, feeRes, unitsRes] =
+  const [accBalRes, paymentsByDateRes, expensesRes, unitBalancesRes, feeRes, unitsRes] =
     await Promise.all([
       svc.from("account_balances")
         .select("cash_opening, bank_opening, bank_interest, closed")
         .eq("month", sourceMonth).single(),
-      // Payments RECEIVED in sourceMonth (by date) — for cash/bank account closing
+      // Payments RECEIVED in sourceMonth (by date) — for both cash/bank closing and per-unit saldo
       svc.from("payments")
         .select("unit_id, amount, method")
         .gte("date", rangeStart)
         .lt("date", rangeEnd),
-      // Payments ATTRIBUTED to sourceMonth (by month field) — for per-unit saldo
-      svc.from("payments")
-        .select("unit_id, amount")
-        .eq("month", sourceMonth),
       svc.from("expenses")
         .select("amount, method")
         .gte("date", rangeStart)
@@ -131,7 +127,7 @@ export async function POST(request: Request) {
   }
 
   const paidByUnit: Record<string, number> = {};
-  for (const p of paymentsByMonthRes.data ?? []) {
+  for (const p of paymentsByDateRes.data ?? []) {
     paidByUnit[p.unit_id] = (paidByUnit[p.unit_id] ?? 0) + Number(p.amount);
   }
 
@@ -141,7 +137,7 @@ export async function POST(request: Request) {
       unit_id: u.id,
       saldo: (openingByUnit[u.id] ?? 0) + fee - (paidByUnit[u.id] ?? 0),
     }))
-    .filter(u => u.saldo > 0);
+    .filter(u => u.saldo !== 0);
 
   // Delete + re-insert (clean upsert for unit_balances)
   await svc.from("unit_balances").delete().eq("month", targetMonth);

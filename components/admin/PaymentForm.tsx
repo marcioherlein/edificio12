@@ -81,6 +81,7 @@ export default function PaymentForm({ units, onSuccess, onCancel, defaultUnitId 
       .select("month, closed")
       .in("month", [...months, ...prevMonths]);
     const blockedPrev = months.filter(m => {
+      if (m > cur) return false; // future months: no prev-closed requirement
       const row = balanceRows?.find(r => r.month === prevMonth(m));
       return row && !row.closed;
     });
