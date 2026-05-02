@@ -68,7 +68,7 @@ async function AdminDashboard({ month }: { month: string }) {
     return {
       month: m,
       caja: Number(ab.cash_opening) + cashIn - cashOut,
-      uala: Number(ab.bank_opening) + transferIn + Number((ab as any).bank_interest ?? 0) - transferOut,
+      belo: Number(ab.bank_opening) + transferIn + Number((ab as any).bank_interest ?? 0) - transferOut,
       ingresos,
       egresos,
     };
@@ -184,7 +184,7 @@ async function AdminDashboard({ month }: { month: string }) {
           </div>
           {bankInterest > 0 && (
             <div className="flex justify-between">
-              <span>+ Intereses Uala</span>
+              <span>+ Intereses Belo</span>
               <span className="text-blue-400 font-semibold">+ {formatCurrency(bankInterest)}</span>
             </div>
           )}

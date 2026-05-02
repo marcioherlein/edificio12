@@ -4,7 +4,7 @@ import { formatCurrency } from "@/lib/utils";
 export interface MonthBalance {
   month: string;
   caja: number;
-  uala: number;
+  belo: number;
   ingresos: number;
   egresos: number;
 }
@@ -13,15 +13,15 @@ export default function BalanceChart({ data }: { data: MonthBalance[] }) {
   if (data.length === 0) return null;
 
   const BAR_H = 96;
-  const allValues = data.flatMap(d => [d.ingresos, d.egresos, d.caja + d.uala]);
+  const allValues = data.flatMap(d => [d.ingresos, d.egresos, d.caja + d.belo]);
   const maxVal = Math.max(...allValues, 1);
 
   return (
     <div>
       <div className="overflow-x-auto pb-1">
         <div className="flex items-end gap-3 min-w-max px-1 pt-6">
-          {data.map(({ month, caja, uala, ingresos, egresos }) => {
-            const total = caja + uala;
+          {data.map(({ month, caja, belo, ingresos, egresos }) => {
+            const total = caja + belo;
             const ingH   = (ingresos / maxVal) * BAR_H;
             const egH    = (egresos  / maxVal) * BAR_H;
             const totH   = (total    / maxVal) * BAR_H;

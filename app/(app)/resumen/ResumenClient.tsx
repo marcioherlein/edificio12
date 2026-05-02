@@ -660,7 +660,7 @@ export default function ResumenClient({
               style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
               <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }} />
               <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-success)" }}>💵 Caja</span>
-              <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-blue)" }}>🏦 Uala</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-blue)" }}>🏦 Belo</span>
               <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Total</span>
             </div>
 
@@ -810,7 +810,7 @@ function InteresesBalanceRow({
       <form onSubmit={handleSave}
         className="grid grid-cols-[3fr_1.5fr_1.5fr_1.5fr] gap-x-3 px-5 py-2.5 border-b items-center"
         style={{ borderColor: "var(--fiori-border)", background: "#f0f7ff" }}>
-        <span className="text-sm font-medium" style={{ color: "var(--fiori-blue)" }}>+ Intereses Uala</span>
+        <span className="text-sm font-medium" style={{ color: "var(--fiori-blue)" }}>+ Intereses Belo</span>
         <span />
         <input
           type="number" min="0" step="0.01" autoFocus
@@ -842,7 +842,7 @@ function InteresesBalanceRow({
       style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium" style={{ color: bankInterest > 0 ? "var(--fiori-blue)" : "var(--fiori-text-muted)" }}>
-          + Intereses Uala
+          + Intereses Belo
         </span>
         {canEdit && (
           <button onClick={() => { setValue(String(bankInterest)); setEditing(true); }}
@@ -1389,7 +1389,7 @@ function CloseMonthPanel({
   ].filter(Boolean) as string[];
 
   const warnings = [
-    bankInterest === 0 && "Intereses Uala en $0 — ¿confirmás que no hubo intereses?",
+    bankInterest === 0 && "Intereses Belo en $0 — ¿confirmás que no hubo intereses?",
     pendingCount > 0 && `${pendingCount} unidad${pendingCount !== 1 ? "es" : ""} con saldo pendiente`,
   ].filter(Boolean) as string[];
 
@@ -1500,7 +1500,7 @@ function CloseMonthPanel({
               <span className="font-semibold" style={{ color: "var(--fiori-text)" }}>{formatCurrency(cashClosing)}</span>
             </div>
             <div className="flex justify-between px-4 py-2.5 text-sm">
-              <span style={{ color: "var(--fiori-text-muted)" }}>Saldo cierre 🏦 Uala</span>
+              <span style={{ color: "var(--fiori-text-muted)" }}>Saldo cierre 🏦 Belo</span>
               <span className="font-semibold" style={{ color: "var(--fiori-text)" }}>{formatCurrency(bankClosing)}</span>
             </div>
             <div className="flex justify-between px-4 py-2.5 text-sm rounded-b"
