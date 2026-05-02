@@ -3,9 +3,9 @@
 
 /* ── Warm Residential design tokens ──────────────────────────────────────────── */
 :root {
-  --fiori-shell:        #334155;
-  --fiori-shell-hover:  #1e293b;
-  --fiori-page-bg:      #f8fafc;
+  --fiori-shell:        #1e293b;
+  --fiori-shell-hover:  #0f172a;
+  --fiori-page-bg:      #f6f8fb;
   --fiori-card-bg:      #ffffff;
   --fiori-border:       #e2e8f0;
   --fiori-border-strong:#94a3b8;
@@ -31,4 +31,8 @@ body {
   background: var(--fiori-page-bg);
   color: var(--fiori-text);
   font-family: 'Inter', system-ui, sans-serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

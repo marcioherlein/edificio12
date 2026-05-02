@@ -5,6 +5,7 @@ import Modal from "@/components/ui/Modal";
 import PaymentForm from "@/components/admin/PaymentForm";
 import ExpenseForm from "@/components/admin/ExpenseForm";
 import GenerateReceiptButton from "@/components/admin/GenerateReceiptButton";
+import KPIStatCard from "@/components/ui/KPIStatCard";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -32,8 +33,8 @@ interface Props {
   categories: { id: string; name: string }[];
 }
 
-// 8 columns: Depto | Propietario | Anterior | Expensa | Efectivo | Transf. | Fecha | Saldo
-const ING_COLS = "grid-cols-[1.8fr_2.2fr_1.2fr_1.2fr_1.2fr_1.2fr_1.4fr_1.2fr]";
+// 8 columns: Depto | Usuario | Saldo ant. | Expensa | Efectivo | Transf. | Fecha | Saldo
+const ING_COLS = "grid-cols-[1.6fr_2fr_1.2fr_1.2fr_1.1fr_1.1fr_1.3fr_1.2fr]";
 
 /** Month is open for new payments/expenses if it's the current month,
  *  or the previous month within the 5-day grace period. */
@@ -98,6 +99,17 @@ export default function ResumenClient({
     return a + ant + feeAmount - (cashByUnit[u.id] ?? 0) - (transferByUnit[u.id] ?? 0);
   }, 0);
 
+  // KPI derived values
+  const totalReceived = totalCashIn + totalTransferIn;
+  const totalPending  = units.reduce((a, u) => {
+    const s = (openingByUnit[u.id] ?? 0) + feeAmount - (cashByUnit[u.id] ?? 0) - (transferByUnit[u.id] ?? 0);
+    return a + Math.max(0, s);
+  }, 0);
+  const paidUnits = units.filter(u => {
+    const s = (openingByUnit[u.id] ?? 0) + feeAmount - (cashByUnit[u.id] ?? 0) - (transferByUnit[u.id] ?? 0);
+    return s <= 0;
+  }).length;
+
   const [yr, mo] = month.split("-").map(Number);
   const lastDay = new Date(yr, mo, 0).getDate();
   const closingDateLabel = `${String(lastDay).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${yr}`;
@@ -108,17 +120,32 @@ export default function ResumenClient({
   const nextMonthLabel = formatMonthLabel(`${nextYr}-${String(nextMo).padStart(2, "0")}`);
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--fiori-page-bg)" }}>
-      <div className="max-w-5xl mx-auto px-4 pt-6 space-y-6">
+    <div className="min-h-screen pb-6" style={{ background: "var(--fiori-page-bg)" }}>
+      <div className="max-w-5xl mx-auto px-4 pt-6 space-y-5">
 
-        {/* ── Page title ─────────────────────────────────── */}
+        {/* ── Page header ─────────────────────────────────── */}
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--fiori-text)" }}>Resumen mensual</h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--fiori-blue)" }}>{formatMonthLabel(month)}</p>
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--fiori-text)" }}>Resumen mensual</h1>
+          <p className="text-sm mt-0.5 font-medium" style={{ color: "var(--fiori-blue)" }}>{formatMonthLabel(month)}</p>
         </div>
 
-        {/* ── Month selector ─────────────────────────────── */}
-        <div className="flex gap-1 overflow-x-auto pb-0 scrollbar-none border-b" style={{ borderColor: "var(--fiori-border)" }}>
+        {/* ── Month selector — dropdown on mobile, tabs on desktop ── */}
+        {/* Mobile select */}
+        <div className="sm:hidden">
+          <select
+            value={month}
+            onChange={e => router.push(`/resumen?month=${e.target.value}`)}
+            className="w-full px-3 py-2.5 border rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)", background: "#fff" }}
+            aria-label="Seleccionar mes"
+          >
+            {availableMonths.map(m => (
+              <option key={m} value={m}>{formatMonthLabel(m)}{m === getCurrentMonth() ? " (actual)" : ""}</option>
+            ))}
+          </select>
+        </div>
+        {/* Desktop tabs */}
+        <div className="hidden sm:flex gap-0.5 overflow-x-auto pb-0 scrollbar-none border-b" style={{ borderColor: "var(--fiori-border)" }}>
           {availableMonths.map(m => {
             const isCurrent = m === getCurrentMonth();
             const isSelected = m === month;
@@ -126,7 +153,7 @@ export default function ResumenClient({
               <button
                 key={m}
                 onClick={() => router.push(`/resumen?month=${m}`)}
-                className="px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all relative"
+                className="px-4 py-2.5 text-sm font-semibold whitespace-nowrap transition-all relative flex items-center gap-1.5"
                 style={{
                   color: isSelected ? "var(--fiori-blue)" : "var(--fiori-text-muted)",
                   borderBottom: isSelected ? "2px solid var(--fiori-blue)" : "2px solid transparent",
@@ -135,7 +162,7 @@ export default function ResumenClient({
               >
                 {formatMonthLabel(m)}
                 {isCurrent && (
-                  <span className="ml-2 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
+                  <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded"
                     style={{ background: "var(--fiori-success)", color: "#fff" }}>
                     actual
                   </span>
@@ -145,10 +172,10 @@ export default function ResumenClient({
           })}
         </div>
 
-        {/* Admin month-close panel / closed notice */}
+        {/* Closed-month notice */}
         {isAdmin && isClosed && (
-          <div className="border rounded px-4 py-3 flex items-center gap-2"
-            style={{ background: "#f9f9f9", borderColor: "var(--fiori-border)" }}>
+          <div className="border-l-4 rounded-r-lg px-4 py-3 flex items-center gap-2.5 bg-white border"
+            style={{ borderLeftColor: "#94a3b8", borderColor: "var(--fiori-border)" }}>
             <span className="text-sm">🔒</span>
             <p className="text-sm" style={{ color: "var(--fiori-text-muted)" }}>
               <span className="font-semibold" style={{ color: "var(--fiori-text)" }}>{formatMonthLabel(month)}</span> está cerrado — solo lectura.
@@ -177,6 +204,31 @@ export default function ResumenClient({
           />
         )}
 
+        {/* ── KPI cards ──────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <KPIStatCard
+            label="Expensa mensual"
+            value={feeAmount > 0 ? formatCurrency(feeAmount) : "—"}
+            color="blue"
+          />
+          <KPIStatCard
+            label="Pagado este mes"
+            value={formatCurrency(totalReceived)}
+            color={totalReceived > 0 ? "green" : "slate"}
+          />
+          <KPIStatCard
+            label="Total pendiente"
+            value={totalPending > 0 ? formatCurrency(totalPending) : "—"}
+            color={totalPending > 0 ? "amber" : "green"}
+            sub={totalPending === 0 ? "Todo al día" : undefined}
+          />
+          <KPIStatCard
+            label="Unidades al día"
+            value={`${paidUnits} / ${units.length}`}
+            color={paidUnits === units.length ? "green" : "amber"}
+          />
+        </div>
+
         {/* ════════════════════════════════════════════════
             INGRESOS
         ════════════════════════════════════════════════ */}
@@ -184,32 +236,22 @@ export default function ResumenClient({
           {/* Section label */}
           <div className="flex items-center gap-3 mb-3">
             <span className="w-1 h-5 rounded-full" style={{ background: "var(--fiori-blue)" }} />
-            <h2 className="text-base font-bold" style={{ color: "var(--fiori-text)" }}>Ingresos</h2>
+            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Ingresos</h2>
             <span className="text-sm font-medium" style={{ color: "var(--fiori-text-muted)" }}>{formatMonthLabel(month)}</span>
           </div>
 
-          <div className="rounded overflow-hidden border" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
-            {/* Column headers — two-row */}
+          <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
+            {/* Column headers — single row */}
             <div className="hidden sm:block border-b" style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
-              {/* Sub-header: "Medio de pago" spanning cols 5-6 */}
-              <div className={`grid ${ING_COLS} gap-x-3 px-5 pt-2`}>
-                <span className="col-span-4" />
-                <span className="col-span-2 text-center text-[10px] font-bold uppercase tracking-widest pb-1"
-                  style={{ color: "var(--fiori-blue)", borderBottom: "1px solid var(--fiori-border)" }}>
-                  Medio de pago
-                </span>
-                <span className="col-span-2" />
-              </div>
-              {/* Column labels */}
-              <div className={`grid ${ING_COLS} gap-x-3 px-5 py-2`}>
+              <div className={`grid ${ING_COLS} gap-x-3 px-5 py-2.5`}>
                 <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Depto</span>
                 <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Usuario</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Saldo Anterior</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Expensa mensual</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-success)" }}>💵 Efectivo</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-blue)" }}>🏦 Transf.</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Fecha pago</span>
-                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Saldo fin de {formatMonthLabel(month)}</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Saldo ant.</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Expensa</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-success)" }}>Efectivo</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-blue)" }}>Transf.</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Fecha</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-right" style={{ color: "var(--fiori-text-muted)" }}>Saldo</span>
               </div>
             </div>
 
@@ -224,6 +266,7 @@ export default function ResumenClient({
               const unitPays   = paymentsByUnit[unit.id] ?? [];
               const isPaid     = saldo <= 0;
               const rowBg      = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
+              const accentColor = saldo < 0 ? "var(--fiori-blue)" : isPaid ? "var(--fiori-success)" : "var(--fiori-warning)";
 
               return (
                 <div key={unit.id} className="border-b last:border-b-0" style={{ borderColor: "var(--fiori-border)" }}>
@@ -233,46 +276,53 @@ export default function ResumenClient({
                     className="cursor-pointer transition-colors hover:bg-[#f8fafc]"
                     style={{ background: expanded ? "#edf4ff" : rowBg }}
                   >
-                    {/* ── Mobile layout: 3-line card ── */}
-                    <div className="sm:hidden px-4 py-3.5">
-                      {/* Line 1: name · owner — status + arrow */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-sm font-bold truncate" style={{ color: "var(--fiori-text)" }}>{unit.name}</span>
-                          <span className="text-xs shrink-0" style={{ color: "var(--fiori-text-muted)" }}>·</span>
-                          <span className="text-xs truncate" style={{ color: "var(--fiori-text-muted)" }}>{unit.owner_name}</span>
+                    {/* ── Mobile layout: card with left accent ── */}
+                    <div className="sm:hidden px-0 py-0">
+                      <div
+                        className="mx-3 my-1.5 rounded-xl border overflow-hidden"
+                        style={{ borderColor: "var(--fiori-border)", background: "#fff", borderLeftWidth: 4, borderLeftColor: accentColor }}
+                      >
+                        <div className="px-3 py-3.5">
+                          {/* Line 1: name · owner — status + arrow */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-sm font-bold" style={{ color: "var(--fiori-text)" }}>{unit.name}</span>
+                              <span className="text-xs shrink-0" style={{ color: "var(--fiori-text-muted)" }}>·</span>
+                              <span className="text-xs truncate" style={{ color: "var(--fiori-text-muted)" }}>{unit.owner_name}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                                saldo < 0
+                                  ? "bg-[#eff6ff] text-[#1d4ed8] border-[#3b82f6]/30"
+                                  : isPaid
+                                  ? "bg-[#f0fdf4] text-[#15803d] border-[#16a34a]/30"
+                                  : "bg-[#fffbeb] text-[#b45309] border-[#d97706]/30"}`}>
+                                {saldo < 0 ? `Crédito ${formatCurrency(-saldo)}` : isPaid ? "Al día" : `Debe ${formatCurrency(saldo)}`}
+                              </span>
+                              <span className="text-xs" style={{ color: "var(--fiori-text-muted)" }}>{expanded ? "▲" : "▼"}</span>
+                            </div>
+                          </div>
+                          {/* Line 2: saldo anterior (only if non-zero) */}
+                          {anterior !== 0 && (
+                            <p className="text-xs mt-1.5 font-medium" style={{ color: anterior < 0 ? "var(--fiori-blue)" : "var(--fiori-warning)" }}>
+                              {anterior < 0 ? `Crédito anterior: ${formatCurrency(-anterior)}` : `Deuda anterior: ${formatCurrency(anterior)}`}
+                            </p>
+                          )}
+                          {/* Line 3: payments + saldo */}
+                          <div className="flex items-center justify-between mt-2 gap-3">
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-semibold tabular-nums" style={{ color: cash > 0 ? "var(--fiori-success)" : "var(--fiori-border)" }}>
+                                💵 {cash > 0 ? formatCurrency(cash) : "—"}
+                              </span>
+                              <span className="text-xs font-semibold tabular-nums" style={{ color: transfer > 0 ? "var(--fiori-blue)" : "var(--fiori-border)" }}>
+                                🏦 {transfer > 0 ? formatCurrency(transfer) : "—"}
+                              </span>
+                            </div>
+                            <span className="text-xs font-bold tabular-nums" style={{ color: saldo < 0 ? "var(--fiori-blue)" : saldo > 0 ? "var(--fiori-warning)" : "var(--fiori-success)" }}>
+                              {saldo < 0 ? `Crédito ${formatCurrency(-saldo)}` : saldo > 0 ? formatCurrency(saldo) : "✓"}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${
-                            saldo < 0
-                              ? "bg-[#eff6ff] text-[#3b82f6] border-[#3b82f6]/30"
-                              : isPaid
-                              ? "bg-[#f0fdf4] text-[#16a34a] border-[#16a34a]/30"
-                              : "bg-[#fef6ec] text-[#d97706] border-[#d97706]/30"}`}>
-                            {saldo < 0 ? `Crédito ${formatCurrency(-saldo)}` : isPaid ? "Al día" : `Debe ${formatCurrency(saldo)}`}
-                          </span>
-                          <span className="text-xs" style={{ color: "var(--fiori-text-muted)" }}>{expanded ? "▲" : "▼"}</span>
-                        </div>
-                      </div>
-                      {/* Line 2: saldo anterior (only if non-zero) */}
-                      {anterior !== 0 && (
-                        <p className="text-xs mt-1.5 font-medium" style={{ color: anterior < 0 ? "var(--fiori-blue)" : "var(--fiori-warning)" }}>
-                          {anterior < 0 ? `Crédito anterior: ${formatCurrency(-anterior)}` : `Deuda anterior: ${formatCurrency(anterior)}`}
-                        </p>
-                      )}
-                      {/* Line 3: payments + saldo */}
-                      <div className="flex items-center justify-between mt-1.5 gap-3">
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs font-semibold" style={{ color: cash > 0 ? "var(--fiori-success)" : "var(--fiori-border)" }}>
-                            💵 {cash > 0 ? formatCurrency(cash) : "—"}
-                          </span>
-                          <span className="text-xs font-semibold" style={{ color: transfer > 0 ? "var(--fiori-blue)" : "var(--fiori-border)" }}>
-                            🏦 {transfer > 0 ? formatCurrency(transfer) : "—"}
-                          </span>
-                        </div>
-                        <span className="text-xs font-bold" style={{ color: saldo < 0 ? "var(--fiori-blue)" : saldo > 0 ? "var(--fiori-warning)" : "var(--fiori-success)" }}>
-                          Saldo: {saldo < 0 ? `Crédito ${formatCurrency(-saldo)}` : saldo > 0 ? formatCurrency(saldo) : "✓"}
-                        </span>
                       </div>
                     </div>
 
@@ -283,21 +333,21 @@ export default function ResumenClient({
                         <span className="text-xs" style={{ color: "var(--fiori-text-muted)" }}>{expanded ? "▲" : "▼"}</span>
                       </div>
                       <span className="text-sm truncate" style={{ color: "var(--fiori-text-muted)" }}>{unit.owner_name}</span>
-                      <span className={`text-sm text-right font-medium`}
+                      <span className={`text-sm text-right font-medium tabular-nums`}
                         style={{ color: anterior < 0 ? "var(--fiori-blue)" : anterior > 0 ? "var(--fiori-warning)" : "var(--fiori-border)" }}>
                         {anterior !== 0 ? formatCurrency(anterior) : "—"}
                       </span>
-                      <span className="text-sm text-right" style={{ color: "var(--fiori-text-muted)" }}>
+                      <span className="text-sm text-right tabular-nums" style={{ color: "var(--fiori-text-muted)" }}>
                         {feeAmount > 0 ? formatCurrency(feeAmount) : "—"}
                       </span>
-                      <span className="text-sm text-right font-semibold rounded px-1"
+                      <span className="text-sm text-right font-semibold rounded px-1 tabular-nums"
                         style={{
                           color: cash > 0 ? "var(--fiori-success)" : "var(--fiori-border)",
                           background: cash > 0 ? "#f0fdf4" : "transparent",
                         }}>
                         {cash > 0 ? formatCurrency(cash) : "—"}
                       </span>
-                      <span className="text-sm text-right font-semibold rounded px-1"
+                      <span className="text-sm text-right font-semibold rounded px-1 tabular-nums"
                         style={{
                           color: transfer > 0 ? "var(--fiori-blue)" : "var(--fiori-border)",
                           background: transfer > 0 ? "#eff6ff" : "transparent",
@@ -307,7 +357,7 @@ export default function ResumenClient({
                       <span className="text-sm text-right" style={{ color: "var(--fiori-text-muted)" }}>
                         {lastDate ? formatDate(lastDate) : "—"}
                       </span>
-                      <span className="text-sm text-right font-bold"
+                      <span className="text-sm text-right font-bold tabular-nums"
                         style={{ color: saldo < 0 ? "var(--fiori-blue)" : saldo > 0 ? "var(--fiori-warning)" : "var(--fiori-success)" }}>
                         {saldo < 0 ? `Crédito ${formatCurrency(-saldo)}` : saldo > 0 ? formatCurrency(saldo) : "✓"}
                       </span>
@@ -448,7 +498,7 @@ export default function ResumenClient({
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <span className="w-1 h-5 rounded-full" style={{ background: "var(--fiori-error)" }} />
-              <h2 className="text-base font-bold" style={{ color: "var(--fiori-text)" }}>Egresos</h2>
+              <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Egresos</h2>
               <span className="text-sm font-medium" style={{ color: "var(--fiori-text-muted)" }}>{formatMonthLabel(month)}</span>
             </div>
             {canEdit && (
@@ -462,7 +512,7 @@ export default function ResumenClient({
             )}
           </div>
 
-          <div className="rounded overflow-hidden border" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
+          <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
             {/* Column headers */}
             <div className="hidden sm:flex items-center px-5 py-2 border-b gap-x-3"
               style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
@@ -600,11 +650,11 @@ export default function ResumenClient({
         <section>
           <div className="flex items-center gap-3 mb-3">
             <span className="w-1 h-5 rounded-full" style={{ background: "var(--fiori-success)" }} />
-            <h2 className="text-base font-bold" style={{ color: "var(--fiori-text)" }}>Balance</h2>
+            <h2 className="text-sm font-bold uppercase tracking-widest" style={{ color: "var(--fiori-text-muted)" }}>Balance</h2>
             <span className="text-sm font-medium" style={{ color: "var(--fiori-text-muted)" }}>{formatMonthLabel(month)}</span>
           </div>
 
-          <div className="rounded overflow-hidden border" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
+          <div className="rounded-xl overflow-hidden border" style={{ borderColor: "var(--fiori-border)", background: "#fff" }}>
             {/* Column header */}
             <div className="grid grid-cols-[3fr_1.5fr_1.5fr_1.5fr] gap-x-3 px-5 py-2.5 border-b"
               style={{ background: "var(--fiori-table-header)", borderColor: "var(--fiori-border)" }}>
@@ -1537,8 +1587,8 @@ function SetFeePanel({ month, feeAmount, onSaved }: {
 
   if (editing) {
     return (
-      <form onSubmit={handleSave} className="border rounded px-4 py-3 space-y-2"
-        style={{ borderColor: "var(--fiori-border)" }}>
+      <form onSubmit={handleSave} className="rounded-r-lg border-l-4 border px-4 py-3 space-y-2 bg-white"
+        style={{ borderColor: "var(--fiori-border)", borderLeftColor: "var(--fiori-blue)" }}>
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium flex-1" style={{ color: "var(--fiori-text)" }}>
             Expensa — {formatMonthLabel(month)}
@@ -1547,22 +1597,22 @@ function SetFeePanel({ month, feeAmount, onSaved }: {
             type="number" min="1" step="0.01" required autoFocus
             value={value} onChange={e => setValue(e.target.value)}
             placeholder="0.00"
-            className="w-36 text-sm text-right border rounded px-2 py-1 focus:outline-none focus:ring-2"
+            className="w-36 text-sm text-right border rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 tabular-nums"
             style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text)" }}
           />
           <button type="button" onClick={() => { setEditing(false); setError(""); }}
-            className="text-xs px-2 py-1 border rounded"
+            className="text-xs px-2 py-1.5 border rounded-lg"
             style={{ borderColor: "var(--fiori-border)", color: "var(--fiori-text-muted)" }}>
             ✕
           </button>
           <button type="submit" disabled={loading}
-            className="text-xs px-3 py-1.5 font-semibold text-white rounded disabled:opacity-50"
+            className="text-xs px-3 py-1.5 font-semibold text-white rounded-lg disabled:opacity-50"
             style={{ background: "var(--fiori-success)" }}>
             {loading ? "…" : "✓ Guardar"}
           </button>
         </div>
         {error && (
-          <p className="text-xs px-3 py-2 rounded" style={{ color: "var(--fiori-error)", background: "#fef2f2" }}>
+          <p className="text-xs px-3 py-2 rounded-lg" style={{ color: "var(--fiori-error)", background: "#fef2f2" }}>
             {error}
           </p>
         )}
@@ -1572,16 +1622,16 @@ function SetFeePanel({ month, feeAmount, onSaved }: {
 
   if (feeAmount > 0) {
     return (
-      <div className="border rounded px-4 py-3 flex items-center gap-3"
-        style={{ borderColor: "#86efac", background: "#f0fdf4" }}>
+      <div className="rounded-r-lg border-l-4 border px-4 py-3 flex items-center gap-3 bg-white"
+        style={{ borderColor: "var(--fiori-border)", borderLeftColor: "var(--fiori-success)" }}>
         <span style={{ color: "var(--fiori-success)" }}>✓</span>
-        <span className="text-sm flex-1" style={{ color: "var(--fiori-success)" }}>
-          Expensa configurada — <strong>{formatCurrency(feeAmount)}</strong>
+        <span className="text-sm flex-1" style={{ color: "var(--fiori-text)" }}>
+          Expensa configurada — <strong className="tabular-nums">{formatCurrency(feeAmount)}</strong>
         </span>
         <button
           onClick={() => { setValue(String(feeAmount)); setEditing(true); }}
-          className="text-xs px-2 py-1 border rounded transition-colors"
-          style={{ color: "var(--fiori-success)", borderColor: "#86efac", background: "#dcfce7" }}>
+          className="text-xs px-2.5 py-1 border rounded-lg transition-colors hover:bg-gray-50"
+          style={{ color: "var(--fiori-text-muted)", borderColor: "var(--fiori-border)" }}>
           Editar
         </button>
       </div>
@@ -1589,16 +1639,16 @@ function SetFeePanel({ month, feeAmount, onSaved }: {
   }
 
   return (
-    <div className="border rounded px-4 py-3 flex items-center gap-3"
-      style={{ borderColor: "#fcd34d", background: "#fffbeb" }}>
+    <div className="rounded-r-lg border-l-4 border px-4 py-3 flex items-center gap-3 bg-white"
+      style={{ borderColor: "var(--fiori-border)", borderLeftColor: "#f59e0b" }}>
       <span>⚠️</span>
-      <span className="text-sm flex-1 font-medium" style={{ color: "#92400e" }}>
+      <span className="text-sm flex-1 font-medium" style={{ color: "var(--fiori-warning)" }}>
         Expensa de {formatMonthLabel(month)} no configurada
       </span>
       <button
         onClick={() => { setValue(""); setEditing(true); }}
-        className="text-xs px-3 py-1.5 font-semibold text-white rounded transition-colors"
-        style={{ background: "#d97706" }}>
+        className="text-xs px-3 py-1.5 font-semibold text-white rounded-lg transition-colors"
+        style={{ background: "var(--fiori-warning)" }}>
         Configurar
       </button>
     </div>

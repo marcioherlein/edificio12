@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/resident/BottomNav";
 import Link from "next/link";
+import DesktopNav from "@/components/resident/DesktopNav";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
@@ -23,19 +24,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: "var(--fiori-page-bg)" }}>
-      {/* Fiori Shell Bar */}
+      {/* Shell Bar */}
       <header
-        className="flex-shrink-0 px-4 h-12 flex items-center justify-between shadow-md z-50"
+        className="flex-shrink-0 px-4 h-14 flex items-center justify-between shadow-md z-50 sticky top-0"
         style={{ background: "var(--fiori-shell)" }}
       >
         {/* Left: logo + app title */}
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded flex items-center justify-center bg-white/20">
-            <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
-              <path d="M10 3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm10-10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1z"/>
-            </svg>
-          </div>
-          <span className="font-semibold text-white text-sm tracking-wide">Edificio 12</span>
+          <Link href="/dashboard" className="flex items-center gap-2.5 mr-2">
+            <div className="w-7 h-7 rounded flex items-center justify-center bg-white/20">
+              <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
+                <path d="M10 3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm10-10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1z"/>
+              </svg>
+            </div>
+            <span className="font-semibold text-white text-sm tracking-wide">Edificio 12</span>
+          </Link>
+
+          {/* Desktop nav links — hidden on mobile */}
+          <DesktopNav />
         </div>
 
         {/* Right: user info + logout */}
@@ -47,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   Admin
                 </span>
               )}
-              <span className="text-xs text-white/80 hidden sm:block">{name}</span>
+              <span className="text-xs text-white/80 hidden sm:block truncate max-w-[140px]">{name}</span>
               <LogoutButton />
             </>
           ) : (
@@ -61,12 +67,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </div>
       </header>
 
-      {/* Page content */}
-      <main className="flex-1 overflow-y-auto pb-20">
+      {/* Page content — no bottom padding on desktop since nav is in header */}
+      <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
         {children}
       </main>
 
-      {/* Bottom navigation */}
+      {/* Bottom navigation — mobile only (md:hidden is set inside the component) */}
       <BottomNav role={role ?? "guest"} />
     </div>
   );

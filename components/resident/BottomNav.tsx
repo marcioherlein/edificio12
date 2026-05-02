@@ -13,7 +13,7 @@ export default function BottomNav({ role }: { role: string }) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 shadow-[0_-2px_8px_rgba(0,0,0,0.15)]"
+      className="fixed bottom-0 left-0 right-0 z-40 shadow-[0_-2px_8px_rgba(0,0,0,0.15)] md:hidden"
       style={{ background: "var(--fiori-shell)", borderTop: "1px solid rgba(255,255,255,0.1)" }}
     >
       <div className="flex">
