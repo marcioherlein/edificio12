@@ -34,11 +34,11 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-600 mb-4 shadow-lg shadow-blue-900/50">
-            <svg viewBox="0 0 24 24" fill="white" className="w-7 h-7">
-              <path d="M10 3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm10-10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1z"/>
-            </svg>
-          </div>
+          <img
+            src="/logo.png"
+            alt="Edificio 12"
+            className="w-24 h-24 rounded-full object-cover mb-4 shadow-lg"
+          />
           <h1 className="text-2xl font-bold text-white">Edificio 12</h1>
           <p className="text-blue-400 text-sm mt-1 font-medium">Acceso administrador</p>
         </div>

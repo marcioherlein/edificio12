@@ -32,11 +32,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {/* Left: logo + app title */}
         <div className="flex items-center gap-3">
           <Link href="/dashboard" className="flex items-center gap-2.5 mr-2">
-            <div className="w-7 h-7 rounded flex items-center justify-center bg-white/20">
-              <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4">
-                <path d="M10 3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1zm10-10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 10h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1z"/>
-              </svg>
-            </div>
+            <img
+              src="/logo.png"
+              alt="Edificio 12"
+              className="w-8 h-8 rounded-full object-cover"
+            />
             <span className="font-semibold text-white text-sm tracking-wide">Edificio 12</span>
           </Link>
 
