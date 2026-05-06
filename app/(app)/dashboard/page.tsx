@@ -108,9 +108,35 @@ async function AdminDashboard({ month }: { month: string }) {
 
   return (
     <div className="p-4 max-w-2xl mx-auto space-y-4">
-      <div className="pt-2">
-        <h1 className="text-xl font-bold text-gray-900">Inicio</h1>
-        <p className="text-sm text-gray-500">{formatMonthLabel(month)}</p>
+      {/* ── Page header ──────────────────────────────────── */}
+      <div
+        className="rounded-2xl px-5 py-5 flex items-center justify-between overflow-hidden relative"
+        style={{ background: "#1e293b" }}
+      >
+        {/* Faded watermark logo — decorative right side */}
+        <img
+          src="/logo.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute right-3 top-1/2 -translate-y-1/2 w-32 h-32 rounded-full object-cover pointer-events-none select-none"
+          style={{ opacity: 0.08 }}
+        />
+        {/* Logo + title */}
+        <div className="flex items-center gap-4 z-10">
+          <img
+            src="/logo.png"
+            alt="Edificio 12"
+            className="w-14 h-14 rounded-full object-cover flex-shrink-0"
+            style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}
+          />
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#94a3b8" }}>
+              Edificio 12
+            </p>
+            <h1 className="text-2xl font-bold text-white leading-tight">Inicio</h1>
+            <p className="text-sm" style={{ color: "#94a3b8" }}>{formatMonthLabel(month)}</p>
+          </div>
+        </div>
       </div>
 
       {/* Two-account balance cards */}
