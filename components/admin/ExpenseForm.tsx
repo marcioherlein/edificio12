@@ -102,7 +102,7 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
 
     let receipt_url: string | null = null;
 
-    if (method === "transferencia" && receiptFile) {
+    if (receiptFile) {
       const ext = receiptFile.name.split(".").pop() ?? "pdf";
       const filename = `expense-${Date.now()}.${ext}`;
       const { error: uploadErr } = await supabase.storage.from("receipts").upload(filename, receiptFile);
@@ -192,7 +192,7 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
                 <span className="text-sm text-gray-700 italic text-right max-w-[60%]">{notes}</span>
               </div>
             )}
-            {method === "transferencia" && (
+            {(method === "transferencia" || receiptFile) && (
               <div className="flex items-center justify-between px-4 py-3">
                 <span className="text-sm text-gray-500">Comprobante</span>
                 <span className={`text-sm font-medium ${receiptFile ? "text-green-700" : "text-amber-600"}`}>
@@ -301,7 +301,7 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
 
       {method === "transferencia" && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Comprobante</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Comprobante <span className="font-normal text-gray-400">(opcional)</span></label>
           <input type="file" accept="image/*,.pdf" onChange={e => setReceiptFile(e.target.files?.[0] ?? null)}
             className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
           <p className="text-xs text-gray-400 mt-1">JPG, PNG o PDF.</p>
@@ -309,10 +309,18 @@ export default function ExpenseForm({ categories: initialCategories, onSuccess, 
       )}
 
       {method === "efectivo" && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
-          <p className="text-xs text-amber-800">
-            <strong>Efectivo:</strong> al confirmar se genera un comprobante descargable.
-          </p>
+        <div className="space-y-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Comprobante <span className="font-normal text-gray-400">(opcional)</span></label>
+            <input type="file" accept="image/*,.pdf" onChange={e => setReceiptFile(e.target.files?.[0] ?? null)}
+              className="w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100" />
+            <p className="text-xs text-gray-400 mt-1">JPG, PNG o PDF.</p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+            <p className="text-xs text-amber-800">
+              <strong>Efectivo:</strong> al confirmar se genera un comprobante descargable automáticamente.
+            </p>
+          </div>
         </div>
       )}
 
